@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>步云鞋垫 · 价格填报管理系统</title>
-<script src="https://img.cdn.teaos.com/tea-cloud-sdk/0.2.14/tcb.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@cloudbase/js-sdk@2.5.0/dist/index.umd.min.js"></script>
 <style>
   :root {
     --primary: #2563eb;
@@ -365,10 +365,11 @@
 
 <script>
 // ==================== 云开发初始化 ====================
-const app = tcb.init({
+const app = cloudbase.init({
   env: 'cloud1-d8gio2ysk4dd3678b' // 替换为你的云开发环境ID
 });
 
+const auth = app.auth();
 const db = app.database();
 const _ = db.command;
 const $ = db.command.aggregate;
@@ -423,6 +424,12 @@ const PAGE_SIZE = 20;
 // ==================== 数据加载 ====================
 async function loadData() {
   try {
+    updateLoadingText('正在连接云端...');
+    
+    // 匿名登录
+    const loginState = await auth.signInAnonymously();
+    console.log('匿名登录成功:', loginState);
+    
     updateLoadingText('加载云端数据...');
     
     // 加载汇率
