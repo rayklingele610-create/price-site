@@ -1,0 +1,1122 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>步云鞋垫 · 价格填报管理系统 v2</title>
+<style>
+  :root {
+    --primary: #2563eb;
+    --primary-light: #dbeafe;
+    --primary-dark: #1d4ed8;
+    --success: #16a34a;
+    --success-light: #dcfce7;
+    --danger: #dc2626;
+    --danger-light: #fee2e2;
+    --warning: #d97706;
+    --warning-light: #fef3c7;
+    --gray-50: #f9fafb;
+    --gray-100: #f3f4f6;
+    --gray-200: #e5e7eb;
+    --gray-300: #d1d5db;
+    --gray-400: #9ca3af;
+    --gray-500: #6b7280;
+    --gray-600: #4b5563;
+    --gray-700: #374151;
+    --gray-800: #1f2937;
+    --gray-900: #111827;
+    --shadow: 0 1px 3px rgba(0,0,0,.1), 0 1px 2px rgba(0,0,0,.06);
+    --shadow-md: 0 4px 6px -1px rgba(0,0,0,.1), 0 2px 4px -1px rgba(0,0,0,.06);
+    --shadow-lg: 0 10px 15px -3px rgba(0,0,0,.1), 0 4px 6px -2px rgba(0,0,0,.05);
+    --radius: 8px;
+    --radius-lg: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'PingFang SC', 'Microsoft YaHei', -apple-system, sans-serif; background: var(--gray-100); color: var(--gray-800); min-height: 100vh; }
+
+  /* Header */
+  .header { background: linear-gradient(135deg, #1e40af 0%, #2563eb 50%, #3b82f6 100%); padding: 20px 32px; display: flex; align-items: center; justify-content: space-between; box-shadow: var(--shadow-md); flex-wrap: wrap; gap: 12px; }
+  .header-left h1 { color: #fff; font-size: 22px; font-weight: 700; letter-spacing: .5px; }
+  .header-left p { color: rgba(255,255,255,.75); font-size: 13px; margin-top: 3px; }
+  .header-right { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .rate-badge { background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.3); border-radius: 20px; padding: 6px 14px; color: #fff; font-size: 13px; backdrop-filter: blur(10px); display: flex; align-items: center; gap: 8px; }
+  .rate-badge span { font-weight: 700; color: #fde68a; }
+  .rate-badge .live-dot { width: 8px; height: 8px; background: #4ade80; border-radius: 50%; animation: pulse 2s infinite; }
+  .rate-badge .live-dot.stale { background: #fbbf24; animation: none; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+  .rate-info { font-size: 11px; color: rgba(255,255,255,.6); display: block; margin-top: 1px; }
+
+  /* Toolbar */
+  .toolbar { background: #fff; padding: 16px 32px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; box-shadow: var(--shadow); border-bottom: 1px solid var(--gray-200); }
+  .toolbar .search-wrap { flex: 1; min-width: 200px; max-width: 320px; position: relative; }
+  .toolbar .search-wrap input { width: 100%; padding: 9px 36px 9px 14px; border: 1px solid var(--gray-300); border-radius: var(--radius); font-size: 14px; outline: none; transition: border .2s; }
+  .toolbar .search-wrap input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-light); }
+  .toolbar .search-wrap .search-icon { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--gray-400); font-size: 16px; pointer-events: none; }
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 18px; border: none; border-radius: var(--radius); font-size: 14px; font-weight: 500; cursor: pointer; transition: all .2s; white-space: nowrap; }
+  .btn-primary { background: var(--primary); color: #fff; }
+  .btn-primary:hover { background: var(--primary-dark); transform: translateY(-1px); box-shadow: var(--shadow-md); }
+  .btn-success { background: var(--success); color: #fff; }
+  .btn-success:hover { background: #15803d; }
+  .btn-outline { background: #fff; color: var(--gray-700); border: 1px solid var(--gray-300); }
+  .btn-outline:hover { background: var(--gray-50); border-color: var(--gray-400); }
+  .btn-danger { background: var(--danger); color: #fff; }
+  .btn-danger:hover { background: #b91c1c; }
+  .btn-sm { padding: 5px 10px; font-size: 12px; }
+  .btn-xs { padding: 3px 8px; font-size: 11px; }
+  .filter-select { padding: 9px 12px; border: 1px solid var(--gray-300); border-radius: var(--radius); font-size: 14px; outline: none; color: var(--gray-700); background: #fff; cursor: pointer; }
+  .filter-select:focus { border-color: var(--primary); }
+
+  /* Stats Bar */
+  .stats-bar { padding: 16px 32px; display: flex; gap: 16px; flex-wrap: wrap; }
+  .stat-card { background: #fff; border-radius: var(--radius-lg); padding: 14px 20px; flex: 1; min-width: 160px; box-shadow: var(--shadow); border: 1px solid var(--gray-200); }
+  .stat-card .label { font-size: 12px; color: var(--gray-500); margin-bottom: 4px; }
+  .stat-card .value { font-size: 24px; font-weight: 700; }
+  .stat-card.blue .value { color: var(--primary); }
+  .stat-card.green .value { color: var(--success); }
+  .stat-card.orange .value { color: var(--warning); }
+  .stat-card.red .value { color: var(--danger); }
+
+  /* Table */
+  .table-wrap { margin: 0 32px 32px; background: #fff; border-radius: var(--radius-lg); box-shadow: var(--shadow-md); overflow: hidden; border: 1px solid var(--gray-200); }
+  table { width: 100%; border-collapse: collapse; }
+  thead th { background: var(--gray-50); padding: 12px 16px; text-align: left; font-size: 12px; font-weight: 600; color: var(--gray-600); text-transform: uppercase; letter-spacing: .5px; border-bottom: 2px solid var(--gray-200); white-space: nowrap; }
+  thead th.sortable { cursor: pointer; user-select: none; }
+  thead th.sortable:hover { color: var(--primary); }
+  tbody tr { border-bottom: 1px solid var(--gray-100); transition: background .15s; }
+  tbody tr:hover { background: var(--gray-50); }
+  tbody tr:last-child { border-bottom: none; }
+  tbody td { padding: 12px 16px; font-size: 14px; color: var(--gray-700); vertical-align: middle; }
+  .model-tag { display: inline-flex; align-items: center; background: var(--primary-light); color: var(--primary-dark); padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+  .category-tag { display: inline-flex; align-items: center; background: var(--warning-light); color: var(--warning); padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; margin-left: 6px; }
+  .qty-tag { display: inline-flex; align-items: center; background: var(--gray-100); color: var(--gray-600); padding: 3px 10px; border-radius: 20px; font-size: 12px; }
+  .price-cny { font-weight: 600; color: var(--gray-800); }
+  .price-usd { color: var(--success); font-weight: 600; }
+  .spec-tag { background: var(--warning-light); color: var(--warning); padding: 2px 8px; border-radius: 4px; font-size: 12px; }
+  .actions { display: flex; gap: 6px; align-items: center; }
+  .img-preview { width: 48px; height: 48px; object-fit: cover; border-radius: 6px; border: 1px solid var(--gray-200); cursor: pointer; transition: transform .2s; }
+  .img-preview:hover { transform: scale(1.1); }
+  .no-img { width: 48px; height: 48px; border-radius: 6px; border: 2px dashed var(--gray-300); display: flex; align-items: center; justify-content: center; color: var(--gray-400); font-size: 18px; cursor: pointer; transition: all .2s; }
+  .no-img:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-light); }
+  .empty-row { text-align: center; padding: 60px 20px; color: var(--gray-400); }
+  .empty-row .icon { font-size: 48px; margin-bottom: 12px; }
+  .group-header { background: linear-gradient(90deg, var(--primary-light), transparent); padding: 8px 16px; font-size: 13px; font-weight: 700; color: var(--primary-dark); border-bottom: 1px solid var(--gray-200); }
+
+  /* Detail expand row */
+  .detail-row { background: var(--gray-50); }
+  .detail-row td { padding: 0; }
+  .detail-content { padding: 16px 24px; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+  .detail-item { display: flex; flex-direction: column; gap: 2px; }
+  .detail-item .detail-label { font-size: 11px; color: var(--gray-500); font-weight: 500; }
+  .detail-item .detail-value { font-size: 13px; color: var(--gray-700); font-weight: 600; }
+  .detail-section-title { font-size: 12px; font-weight: 700; color: var(--primary-dark); grid-column: 1 / -1; margin-top: 4px; padding-bottom: 4px; border-bottom: 1px dashed var(--gray-200); }
+  .expand-btn { background: none; border: none; cursor: pointer; color: var(--gray-400); font-size: 16px; padding: 4px; border-radius: 4px; transition: all .2s; }
+  .expand-btn:hover { color: var(--primary); background: var(--primary-light); }
+  .expand-btn.open { transform: rotate(180deg); }
+
+  /* Modal */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 1000; display: none; align-items: center; justify-content: center; padding: 20px; backdrop-filter: blur(4px); }
+  .modal-overlay.open { display: flex; }
+  .modal { background: #fff; border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); width: 100%; max-width: 720px; max-height: 92vh; overflow-y: auto; animation: modalIn .2s ease; }
+  @keyframes modalIn { from { opacity:0; transform: scale(.95) translateY(-10px); } to { opacity:1; transform: scale(1) translateY(0); } }
+  .modal-header { padding: 20px 24px 16px; border-bottom: 1px solid var(--gray-200); display: flex; align-items: center; justify-content: space-between; }
+  .modal-header h2 { font-size: 18px; font-weight: 700; color: var(--gray-900); }
+  .modal-close { background: none; border: none; cursor: pointer; color: var(--gray-400); font-size: 22px; line-height: 1; padding: 4px; border-radius: 6px; transition: all .2s; }
+  .modal-close:hover { color: var(--gray-700); background: var(--gray-100); }
+  .modal-body { padding: 20px 24px; }
+  .modal-footer { padding: 16px 24px; border-top: 1px solid var(--gray-200); display: flex; justify-content: flex-end; gap: 10px; }
+  .form-group { margin-bottom: 16px; }
+  .form-label { display: block; font-size: 13px; font-weight: 600; color: var(--gray-700); margin-bottom: 6px; }
+  .form-label .required { color: var(--danger); margin-left: 2px; }
+  .form-control { width: 100%; padding: 9px 12px; border: 1px solid var(--gray-300); border-radius: var(--radius); font-size: 14px; outline: none; transition: border .2s; background: #fff; color: var(--gray-800); }
+  .form-control:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-light); }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .form-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+  .form-hint { font-size: 12px; color: var(--gray-400); margin-top: 4px; }
+  .usd-auto { background: var(--success-light); border-color: var(--success); color: var(--success); font-weight: 600; }
+  .section-divider { border-top: 1px solid var(--gray-200); margin: 20px 0 16px; padding-top: 16px; }
+  .section-title { font-size: 14px; font-weight: 700; color: var(--gray-800); margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
+
+  /* Image upload zone */
+  .img-upload-zone { border: 2px dashed var(--gray-300); border-radius: var(--radius); padding: 20px; text-align: center; cursor: pointer; transition: all .2s; position: relative; overflow: hidden; }
+  .img-upload-zone:hover, .img-upload-zone.dragover { border-color: var(--primary); background: var(--primary-light); }
+  .img-upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .img-upload-zone .upload-text { color: var(--gray-500); font-size: 13px; }
+  .img-upload-zone .upload-icon { font-size: 32px; margin-bottom: 6px; }
+  .img-upload-preview { max-width: 100%; max-height: 150px; border-radius: var(--radius); margin-top: 10px; object-fit: cover; display: none; }
+  .img-upload-preview.show { display: block; margin: 10px auto 0; }
+
+  /* Confirm Dialog */
+  .confirm-dialog { max-width: 400px; }
+  .confirm-content { padding: 20px 24px; text-align: center; }
+  .confirm-icon { font-size: 48px; margin-bottom: 12px; }
+  .confirm-content p { color: var(--gray-600); font-size: 14px; margin-top: 6px; }
+
+  /* Pagination */
+  .pagination { padding: 16px 32px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .page-info { font-size: 13px; color: var(--gray-500); }
+  .page-btns { display: flex; gap: 6px; }
+  .page-btn { min-width: 32px; height: 32px; padding: 0 10px; border: 1px solid var(--gray-300); border-radius: 6px; background: #fff; font-size: 13px; cursor: pointer; transition: all .15s; display: flex; align-items: center; justify-content: center; color: var(--gray-700); }
+  .page-btn:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); background: var(--primary-light); }
+  .page-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+  .page-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+  /* Toast */
+  .toast-container { position: fixed; top: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; }
+  .toast { background: #fff; border-radius: var(--radius); padding: 12px 18px; box-shadow: var(--shadow-lg); display: flex; align-items: center; gap: 10px; min-width: 260px; max-width: 380px; animation: toastIn .3s ease; border-left: 4px solid var(--primary); }
+  .toast.success { border-left-color: var(--success); }
+  .toast.error { border-left-color: var(--danger); }
+  .toast.warning { border-left-color: var(--warning); }
+  @keyframes toastIn { from { opacity:0; transform: translateX(20px); } to { opacity:1; transform: translateX(0); } }
+  .toast-icon { font-size: 18px; }
+  .toast-msg { font-size: 14px; color: var(--gray-800); }
+
+  /* View/img modal */
+  .view-img-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.85); z-index: 2000; display: none; align-items: center; justify-content: center; cursor: zoom-out; }
+  .view-img-overlay.open { display: flex; }
+  .view-img-overlay img { max-width: 90vw; max-height: 90vh; border-radius: var(--radius); box-shadow: var(--shadow-lg); }
+
+  /* Category manager */
+  .category-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .category-chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; background: var(--primary-light); color: var(--primary-dark); border-radius: 20px; font-size: 12px; font-weight: 500; }
+  .category-chip .del { cursor: pointer; opacity: .6; transition: opacity .2s; }
+  .category-chip .del:hover { opacity: 1; color: var(--danger); }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .header { padding: 16px 20px; flex-direction: column; gap: 10px; align-items: flex-start; }
+    .toolbar, .stats-bar, .table-wrap, .pagination { margin-left: 0; margin-right: 0; padding-left: 16px; padding-right: 16px; }
+    .table-wrap { margin: 0 16px 24px; overflow-x: auto; }
+    .form-row, .form-row-3 { grid-template-columns: 1fr; }
+    .stats-bar { padding: 12px 16px; }
+    .detail-content { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="header-left">
+    <h1>🧾 步云鞋垫 · 价格填报管理系统 v2</h1>
+    <p>新乡步云鞋垫有限公司 · 内部版价格管理</p>
+  </div>
+  <div class="header-right">
+    <div class="rate-badge">
+      <span class="live-dot" id="rateDot"></span>
+      💱 汇率：1 USD = <span id="rateDisplay">6.80</span> CNY
+      <span class="rate-info" id="rateDate">手动设置</span>
+    </div>
+    <button class="btn btn-outline" style="color:#fff;border-color:rgba(255,255,255,.4);background:rgba(255,255,255,.1)" onclick="refreshRate()">
+      🔄 刷新汇率
+    </button>
+    <button class="btn btn-outline" style="color:#fff;border-color:rgba(255,255,255,.4);background:rgba(255,255,255,.1)" onclick="showRateModal()">
+      ✏️ 手动设置
+    </button>
+  </div>
+</div>
+
+<!-- Toolbar -->
+<div class="toolbar">
+  <div class="search-wrap">
+    <input type="text" id="searchInput" placeholder="搜索产品型号、规格、备注..." oninput="handleSearch()">
+    <span class="search-icon">🔍</span>
+  </div>
+  <select class="filter-select" id="modelFilter" onchange="applyFilter()">
+    <option value="">全部型号</option>
+  </select>
+  <select class="filter-select" id="categoryFilter" onchange="applyFilter()">
+    <option value="">全部类目</option>
+  </select>
+  <select class="filter-select" id="qtyFilter" onchange="applyFilter()">
+    <option value="">全部数量</option>
+    <option value="small">小批量 (≤50)</option>
+    <option value="medium">中批量 (51-999)</option>
+    <option value="large">大批量 (≥1000)</option>
+  </select>
+  <button class="btn btn-primary" onclick="openAddModal()">
+    ➕ 添加产品
+  </button>
+  <button class="btn btn-success" onclick="exportData()">
+    📥 导出数据
+  </button>
+  <button class="btn btn-outline" onclick="importData()" title="从 JSON 导入">
+    📤 导入
+  </button>
+  <button class="btn btn-outline" onclick="showCategoryModal()">
+    📂 类目管理
+  </button>
+</div>
+
+<!-- Stats -->
+<div class="stats-bar">
+  <div class="stat-card blue"><div class="label">产品型号数</div><div class="value" id="statModels">0</div></div>
+  <div class="stat-card green"><div class="label">价格条目数</div><div class="value" id="statItems">0</div></div>
+  <div class="stat-card orange"><div class="label">产品类目数</div><div class="value" id="statCategories">0</div></div>
+  <div class="stat-card red"><div class="label">最高单价 (CNY)</div><div class="value" id="statMaxPrice">-</div></div>
+</div>
+
+<!-- Table -->
+<div class="table-wrap">
+  <table id="dataTable">
+    <thead>
+      <tr>
+        <th style="width:40px"></th>
+        <th style="width:50px">#</th>
+        <th class="sortable" onclick="sortBy('model')">型号 ↕</th>
+        <th style="width:70px">配图</th>
+        <th class="sortable" onclick="sortBy('qty')">数量 ↕</th>
+        <th class="sortable" onclick="sortBy('cny')">人民币价格 ↕</th>
+        <th class="sortable" onclick="sortBy('usd')">美元价格 ↕</th>
+        <th>规格</th>
+        <th>类目</th>
+        <th style="width:140px">操作</th>
+      </tr>
+    </thead>
+    <tbody id="tableBody"></tbody>
+  </table>
+</div>
+
+<!-- Pagination -->
+<div class="pagination">
+  <div class="page-info" id="pageInfo"></div>
+  <div class="page-btns" id="pageBtns"></div>
+</div>
+
+<!-- Add/Edit Modal -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modalTitle">添加产品</h2>
+      <button class="modal-close" onclick="closeModal('editModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="editId">
+
+      <!-- 基础信息 -->
+      <div class="section-title">📋 基础信息</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">产品型号<span class="required">*</span></label>
+          <input type="text" class="form-control" id="editModel" placeholder="如：AS01、6041基础款">
+        </div>
+        <div class="form-group">
+          <label class="form-label">产品类目</label>
+          <select class="form-control" id="editCategory">
+            <option value="">-- 选择类目 --</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">数量<span class="required">*</span></label>
+          <input type="number" class="form-control" id="editQty" placeholder="如：20" min="1" oninput="autoCalcUSD()">
+        </div>
+        <div class="form-group">
+          <label class="form-label">规格</label>
+          <input type="text" class="form-control" id="editSpec" placeholder="如：2.5cm">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">人民币价格 (CNY)<span class="required">*</span></label>
+          <input type="number" class="form-control" id="editCny" placeholder="如：17.68" step="0.01" min="0" oninput="autoCalcUSD()">
+        </div>
+        <div class="form-group">
+          <label class="form-label">美元价格 (USD)</label>
+          <input type="number" class="form-control usd-auto" id="editUsd" placeholder="自动计算" step="0.0001" min="0">
+          <div class="form-hint">💡 可手动修改，或留空由汇率自动换算</div>
+        </div>
+      </div>
+
+      <!-- 重量 & 包装（参考图二） -->
+      <div class="section-divider">
+        <div class="section-title">⚖️ 重量 & 包装</div>
+      </div>
+      <div class="form-row-3">
+        <div class="form-group">
+          <label class="form-label">充重 (g)</label>
+          <input type="number" class="form-control" id="editWeightNet" placeholder="单双重量，如 120" step="0.1" min="0">
+        </div>
+        <div class="form-group">
+          <label class="form-label">包装重量 (g)</label>
+          <input type="number" class="form-control" id="editWeightPkg" placeholder="含包装重量，如 30" step="0.1" min="0">
+        </div>
+        <div class="form-group">
+          <label class="form-label">偏重 (kg)</label>
+          <input type="number" class="form-control" id="editWeightBulk" placeholder="整箱毛重，如 15.5" step="0.1" min="0">
+        </div>
+      </div>
+      <div class="form-row-3">
+        <div class="form-group">
+          <label class="form-label">箱子体积</label>
+          <input type="text" class="form-control" id="editBoxVolume" placeholder="如 60×40×30cm 或 0.072CBM">
+        </div>
+        <div class="form-group">
+          <label class="form-label">每箱数量</label>
+          <input type="number" class="form-control" id="editQtyPerBox" placeholder="如 200" min="0">
+        </div>
+        <div class="form-group">
+          <label class="form-label">包装方式</label>
+          <input type="text" class="form-control" id="editPkgMethod" placeholder="如：OPP袋/彩盒/纸箱">
+        </div>
+      </div>
+
+      <!-- 配图 -->
+      <div class="section-divider">
+        <div class="section-title">🖼️ 产品配图</div>
+      </div>
+      <div class="form-group">
+        <div class="img-upload-zone" id="uploadZone" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
+          <input type="file" accept="image/*" id="imgFileInput" onchange="handleImgUpload(event)">
+          <div class="upload-icon">🖼️</div>
+          <div class="upload-text">点击或拖拽上传配图<br><small style="color:var(--gray-400)">支持 JPG / PNG / GIF / WebP</small></div>
+          <img class="img-upload-preview" id="imgPreview" src="" alt="预览">
+        </div>
+        <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
+          <input type="text" class="form-control" id="editImgUrl" placeholder="或粘贴图片 URL 地址" style="flex:1" oninput="handleUrlInput()">
+          <button class="btn btn-sm btn-outline" onclick="clearImg()">清除</button>
+        </div>
+      </div>
+
+      <!-- 备注 -->
+      <div class="section-divider">
+        <div class="section-title">📝 备注</div>
+      </div>
+      <div class="form-group">
+        <input type="text" class="form-control" id="editRemark" placeholder="其他说明信息">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('editModal')">取消</button>
+      <button class="btn btn-primary" onclick="saveItem()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm Delete Modal -->
+<div class="modal-overlay" id="confirmModal">
+  <div class="modal confirm-dialog">
+    <div class="confirm-content">
+      <div class="confirm-icon">🗑️</div>
+      <h3 style="font-size:18px;font-weight:700">确认删除</h3>
+      <p id="confirmMsg">确定要删除这条记录吗？此操作不可撤销。</p>
+    </div>
+    <div class="modal-footer" style="justify-content:center">
+      <button class="btn btn-outline" onclick="closeModal('confirmModal')">取消</button>
+      <button class="btn btn-danger" id="confirmDeleteBtn">确认删除</button>
+    </div>
+  </div>
+</div>
+
+<!-- Rate Modal -->
+<div class="modal-overlay" id="rateModal">
+  <div class="modal" style="max-width:380px">
+    <div class="modal-header">
+      <h2>手动设置汇率</h2>
+      <button class="modal-close" onclick="closeModal('rateModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">美元兑人民币汇率</label>
+        <input type="number" class="form-control" id="newRate" step="0.0001" placeholder="如：6.8014">
+        <div class="form-hint">当前汇率：1 USD = <strong id="currentRateHint">6.80</strong> CNY</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('rateModal')">取消</button>
+      <button class="btn btn-primary" onclick="updateRate()">更新并重算</button>
+    </div>
+  </div>
+</div>
+
+<!-- Import Modal -->
+<div class="modal-overlay" id="importModal">
+  <div class="modal" style="max-width:500px">
+    <div class="modal-header">
+      <h2>导入数据</h2>
+      <button class="modal-close" onclick="closeModal('importModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">粘贴 JSON 数据</label>
+        <textarea class="form-control" id="importJson" rows="10" placeholder='[{"model":"AS01","qty":20,"cny":17.68,"usd":2.60,"spec":"","img":"","remark":""}]' style="font-size:12px;font-family:monospace;resize:vertical"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('importModal')">取消</button>
+      <button class="btn btn-success" onclick="doImport()">导入</button>
+    </div>
+  </div>
+</div>
+
+<!-- Category Manager Modal -->
+<div class="modal-overlay" id="categoryModal">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header">
+      <h2>📂 产品类目管理</h2>
+      <button class="modal-close" onclick="closeModal('categoryModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">新增类目</label>
+        <div style="display:flex;gap:8px">
+          <input type="text" class="form-control" id="newCategoryName" placeholder="如：增高鞋垫、除臭鞋垫..." style="flex:1">
+          <button class="btn btn-primary" onclick="addCategory()">添加</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">现有类目</label>
+        <div class="category-list" id="categoryList"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('categoryModal')">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- Image Viewer -->
+<div class="view-img-overlay" id="viewImgOverlay" onclick="closeImgViewer()">
+  <img id="viewImgEl" src="" alt="">
+</div>
+
+<!-- Toast Container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+// ==================== 数据初始化 ====================
+const USD_RATE_KEY = 'buyun_usd_rate_v2';
+const DATA_KEY = 'buyun_price_data_v2';
+const CATEGORIES_KEY = 'buyun_categories_v2';
+const RATE_TIME_KEY = 'buyun_rate_time_v2';
+
+let usdRate = parseFloat(localStorage.getItem(USD_RATE_KEY)) || 6.80;
+let rateLastUpdated = localStorage.getItem(RATE_TIME_KEY) || '';
+
+// 默认类目
+const defaultCategories = ['增高鞋垫', '除臭鞋垫', '矫正鞋垫', '运动鞋垫', '保暖鞋垫', '普通鞋垫'];
+let categories = JSON.parse(localStorage.getItem(CATEGORIES_KEY)) || [...defaultCategories];
+
+// 初始数据（从价格表.xls 读取，美元价格按汇率 6.80 换算）
+const initialData = [
+  // AS01
+  { id:1, model:'AS01', category:'增高鞋垫', qty:20,   cny:17.68, usd:+(17.68/6.80).toFixed(4), spec:'', img:'', remark:'',
+    weightNet:120, weightPkg:30, weightBulk:15.5, boxVolume:'60×40×30cm', qtyPerBox:200, pkgMethod:'OPP袋' },
+  { id:2, model:'AS01', category:'增高鞋垫', qty:180,  cny:15.54, usd:+(15.54/6.80).toFixed(4), spec:'', img:'', remark:'',
+    weightNet:120, weightPkg:30, weightBulk:15.5, boxVolume:'60×40×30cm', qtyPerBox:200, pkgMethod:'OPP袋' },
+  { id:3, model:'AS01', category:'增高鞋垫', qty:1800, cny:12.50, usd:+(12.50/6.80).toFixed(4), spec:'', img:'', remark:'',
+    weightNet:120, weightPkg:30, weightBulk:15.5, boxVolume:'60×40×30cm', qtyPerBox:200, pkgMethod:'OPP袋' },
+  // AS03
+  { id:4, model:'AS03', category:'普通鞋垫', qty:20,   cny:9.80,  usd:+(9.80/6.80).toFixed(4),  spec:'', img:'', remark:'',
+    weightNet:80, weightPkg:25, weightBulk:12.0, boxVolume:'50×35×25cm', qtyPerBox:300, pkgMethod:'彩盒' },
+  { id:5, model:'AS03', category:'普通鞋垫', qty:1000, cny:8.80,  usd:+(8.80/6.80).toFixed(4),  spec:'', img:'', remark:'',
+    weightNet:80, weightPkg:25, weightBulk:12.0, boxVolume:'50×35×25cm', qtyPerBox:300, pkgMethod:'彩盒' },
+  // AS05
+  { id:6, model:'AS05', category:'增高鞋垫', qty:20,   cny:17.68, usd:+(17.68/6.80).toFixed(4), spec:'', img:'', remark:'',
+    weightNet:120, weightPkg:30, weightBulk:15.5, boxVolume:'60×40×30cm', qtyPerBox:200, pkgMethod:'OPP袋' },
+  { id:7, model:'AS05', category:'增高鞋垫', qty:180,  cny:15.54, usd:+(15.54/6.80).toFixed(4), spec:'', img:'', remark:'',
+    weightNet:120, weightPkg:30, weightBulk:15.5, boxVolume:'60×40×30cm', qtyPerBox:200, pkgMethod:'OPP袋' },
+  { id:8, model:'AS05', category:'增高鞋垫', qty:1800, cny:12.50, usd:+(12.50/6.80).toFixed(4), spec:'', img:'', remark:'',
+    weightNet:120, weightPkg:30, weightBulk:15.5, boxVolume:'60×40×30cm', qtyPerBox:200, pkgMethod:'OPP袋' },
+  // AS06
+  { id:9,  model:'AS06', category:'增高鞋垫', qty:20,   cny:17.68, usd:+(17.68/6.80).toFixed(4), spec:'', img:'', remark:'',
+    weightNet:120, weightPkg:30, weightBulk:15.5, boxVolume:'60×40×30cm', qtyPerBox:200, pkgMethod:'OPP袋' },
+  { id:10, model:'AS06', category:'增高鞋垫', qty:180,  cny:15.54, usd:+(15.54/6.80).toFixed(4), spec:'', img:'', remark:'',
+    weightNet:120, weightPkg:30, weightBulk:15.5, boxVolume:'60×40×30cm', qtyPerBox:200, pkgMethod:'OPP袋' },
+  { id:11, model:'AS06', category:'增高鞋垫', qty:1800, cny:12.50, usd:+(12.50/6.80).toFixed(4), spec:'', img:'', remark:'',
+    weightNet:120, weightPkg:30, weightBulk:15.5, boxVolume:'60×40×30cm', qtyPerBox:200, pkgMethod:'OPP袋' },
+  // AS07
+  { id:12, model:'AS07', category:'增高鞋垫', qty:20,   cny:17.68, usd:+(17.68/6.80).toFixed(4), spec:'', img:'', remark:'',
+    weightNet:120, weightPkg:30, weightBulk:15.5, boxVolume:'60×40×30cm', qtyPerBox:200, pkgMethod:'OPP袋' },
+  { id:13, model:'AS07', category:'增高鞋垫', qty:180,  cny:15.54, usd:+(15.54/6.80).toFixed(4), spec:'', img:'', remark:'',
+    weightNet:120, weightPkg:30, weightBulk:15.5, boxVolume:'60×40×30cm', qtyPerBox:200, pkgMethod:'OPP袋' },
+  { id:14, model:'AS07', category:'增高鞋垫', qty:1800, cny:12.50, usd:+(12.50/6.80).toFixed(4), spec:'', img:'', remark:'',
+    weightNet:120, weightPkg:30, weightBulk:15.5, boxVolume:'60×40×30cm', qtyPerBox:200, pkgMethod:'OPP袋' },
+  // 2302
+  { id:15, model:'2302', category:'普通鞋垫', qty:10,   cny:5.80,  usd:+(5.80/6.80).toFixed(4),  spec:'', img:'', remark:'',
+    weightNet:60, weightPkg:20, weightBulk:10.0, boxVolume:'45×30×20cm', qtyPerBox:400, pkgMethod:'OPP袋' },
+  { id:16, model:'2302', category:'普通鞋垫', qty:1000, cny:4.50,  usd:+(4.50/6.80).toFixed(4),  spec:'', img:'', remark:'',
+    weightNet:60, weightPkg:20, weightBulk:10.0, boxVolume:'45×30×20cm', qtyPerBox:400, pkgMethod:'OPP袋' },
+  { id:17, model:'2302', category:'普通鞋垫', qty:2000, cny:4.20,  usd:+(4.20/6.80).toFixed(4),  spec:'', img:'', remark:'',
+    weightNet:60, weightPkg:20, weightBulk:10.0, boxVolume:'45×30×20cm', qtyPerBox:400, pkgMethod:'OPP袋' },
+  // 2303
+  { id:18, model:'2303', category:'普通鞋垫', qty:20,   cny:5.20,  usd:+(5.20/6.80).toFixed(4),  spec:'', img:'', remark:'',
+    weightNet:65, weightPkg:22, weightBulk:11.0, boxVolume:'48×32×22cm', qtyPerBox:350, pkgMethod:'彩盒' },
+  { id:19, model:'2303', category:'普通鞋垫', qty:1000, cny:4.20,  usd:+(4.20/6.80).toFixed(4),  spec:'', img:'', remark:'',
+    weightNet:65, weightPkg:22, weightBulk:11.0, boxVolume:'48×32×22cm', qtyPerBox:350, pkgMethod:'彩盒' },
+  // 2304
+  { id:20, model:'2304', category:'矫正鞋垫', qty:20, cny:4.20, usd:+(4.20/6.80).toFixed(4), spec:'2.5cm', img:'', remark:'',
+    weightNet:90, weightPkg:28, weightBulk:14.0, boxVolume:'55×38×28cm', qtyPerBox:250, pkgMethod:'彩盒' },
+  { id:21, model:'2304', category:'矫正鞋垫', qty:20, cny:4.50, usd:+(4.50/6.80).toFixed(4), spec:'3.5cm', img:'', remark:'',
+    weightNet:90, weightPkg:28, weightBulk:14.0, boxVolume:'55×38×28cm', qtyPerBox:250, pkgMethod:'彩盒' },
+  // 2308
+  { id:22, model:'2308', category:'增高鞋垫', qty:20,   cny:17.68, usd:+(17.68/6.80).toFixed(4), spec:'', img:'', remark:'',
+    weightNet:120, weightPkg:30, weightBulk:15.5, boxVolume:'60×40×30cm', qtyPerBox:200, pkgMethod:'OPP袋' },
+  { id:23, model:'2308', category:'增高鞋垫', qty:180,  cny:15.54, usd:+(15.54/6.80).toFixed(4), spec:'', img:'', remark:'',
+    weightNet:120, weightPkg:30, weightBulk:15.5, boxVolume:'60×40×30cm', qtyPerBox:200, pkgMethod:'OPP袋' },
+  { id:24, model:'2308', category:'增高鞋垫', qty:1800, cny:12.50, usd:+(12.50/6.80).toFixed(4), spec:'', img:'', remark:'',
+    weightNet:120, weightPkg:30, weightBulk:15.5, boxVolume:'60×40×30cm', qtyPerBox:200, pkgMethod:'OPP袋' },
+  // 6041基础款
+  { id:25, model:'6041基础款', category:'普通鞋垫', qty:20,   cny:4.50, usd:+(4.50/6.80).toFixed(4), spec:'', img:'', remark:'',
+    weightNet:55, weightPkg:18, weightBulk:9.0, boxVolume:'42×28×18cm', qtyPerBox:500, pkgMethod:'OPP袋' },
+  { id:26, model:'6041基础款', category:'普通鞋垫', qty:1000, cny:4.20, usd:+(4.20/6.80).toFixed(4), spec:'', img:'', remark:'',
+    weightNet:55, weightPkg:18, weightBulk:9.0, boxVolume:'42×28×18cm', qtyPerBox:500, pkgMethod:'OPP袋' },
+  { id:27, model:'6041基础款', category:'普通鞋垫', qty:2000, cny:4.00, usd:+(4.00/6.80).toFixed(4), spec:'', img:'', remark:'',
+    weightNet:55, weightPkg:18, weightBulk:9.0, boxVolume:'42×28×18cm', qtyPerBox:500, pkgMethod:'OPP袋' },
+  // 6041黑色除臭布
+  { id:28, model:'6041黑色除臭布', category:'除臭鞋垫', qty:10,   cny:5.80, usd:+(5.80/6.80).toFixed(4), spec:'', img:'', remark:'',
+    weightNet:70, weightPkg:24, weightBulk:11.5, boxVolume:'48×32×22cm', qtyPerBox:350, pkgMethod:'彩盒' },
+  { id:29, model:'6041黑色除臭布', category:'除臭鞋垫', qty:1000, cny:4.50, usd:+(4.50/6.80).toFixed(4), spec:'', img:'', remark:'',
+    weightNet:70, weightPkg:24, weightBulk:11.5, boxVolume:'48×32×22cm', qtyPerBox:350, pkgMethod:'彩盒' },
+  { id:30, model:'6041黑色除臭布', category:'除臭鞋垫', qty:2000, cny:4.20, usd:+(4.20/6.80).toFixed(4), spec:'', img:'', remark:'',
+    weightNet:70, weightPkg:24, weightBulk:11.5, boxVolume:'48×32×22cm', qtyPerBox:350, pkgMethod:'彩盒' },
+  // 6041垫片款
+  { id:31, model:'6041垫片款', category:'矫正鞋垫', qty:20, cny:5.20, usd:+(5.20/6.80).toFixed(4), spec:'', img:'', remark:'',
+    weightNet:85, weightPkg:26, weightBulk:13.0, boxVolume:'52×36×26cm', qtyPerBox:280, pkgMethod:'彩盒' },
+  // 8007
+  { id:32, model:'8007', category:'运动鞋垫', qty:20,   cny:6.90, usd:+(6.90/6.80).toFixed(4), spec:'', img:'', remark:'',
+    weightNet:75, weightPkg:23, weightBulk:11.0, boxVolume:'48×32×22cm', qtyPerBox:350, pkgMethod:'彩盒' },
+  { id:33, model:'8007', category:'运动鞋垫', qty:1000, cny:4.60, usd:+(4.60/6.80).toFixed(4), spec:'', img:'', remark:'',
+    weightNet:75, weightPkg:23, weightBulk:11.0, boxVolume:'48×32×22cm', qtyPerBox:350, pkgMethod:'彩盒' },
+];
+
+let data = JSON.parse(localStorage.getItem(DATA_KEY)) || JSON.parse(JSON.stringify(initialData));
+let nextId = data.length ? Math.max(...data.map(d=>d.id)) + 1 : 100;
+
+// 展开状态
+let expandedIds = new Set();
+
+// ==================== 过滤 / 排序 / 分页 ====================
+let filtered = [...data];
+let sortField = 'model', sortDir = 1;
+let currentPage = 1;
+const PAGE_SIZE = 20;
+
+function applyFilter() {
+  const q = document.getElementById('searchInput').value.trim().toLowerCase();
+  const mf = document.getElementById('modelFilter').value;
+  const cf = document.getElementById('categoryFilter').value;
+  const qf = document.getElementById('qtyFilter').value;
+  filtered = data.filter(r => {
+    const matchQ = !q || r.model.toLowerCase().includes(q) || String(r.qty).includes(q) || (r.remark||'').toLowerCase().includes(q) || (r.spec||'').toLowerCase().includes(q);
+    const matchM = !mf || r.model === mf;
+    const matchC = !cf || r.category === cf;
+    let matchQty = true;
+    if(qf === 'small')  matchQty = r.qty <= 50;
+    if(qf === 'medium') matchQty = r.qty > 50 && r.qty < 1000;
+    if(qf === 'large')  matchQty = r.qty >= 1000;
+    return matchQ && matchM && matchC && matchQty;
+  });
+  filtered.sort((a,b) => {
+    let av = a[sortField === 'model' ? 'model' : sortField === 'qty' ? 'qty' : sortField === 'cny' ? 'cny' : 'usd'];
+    let bv = b[sortField === 'model' ? 'model' : sortField === 'qty' ? 'qty' : sortField === 'cny' ? 'cny' : 'usd'];
+    if(typeof av === 'string') return av.localeCompare(bv) * sortDir;
+    return (av - bv) * sortDir;
+  });
+  currentPage = 1;
+  render();
+}
+
+function handleSearch() { applyFilter(); }
+
+function sortBy(field) {
+  if(sortField === field) sortDir *= -1;
+  else { sortField = field; sortDir = 1; }
+  applyFilter();
+}
+
+// ==================== 渲染 ====================
+function render() {
+  updateStats();
+  updateModelFilter();
+  updateCategoryFilter();
+  renderTable();
+  renderPagination();
+}
+
+function updateStats() {
+  const models = [...new Set(data.map(d=>d.model))];
+  document.getElementById('statModels').textContent = models.length;
+  document.getElementById('statItems').textContent = data.length;
+  document.getElementById('statCategories').textContent = categories.length;
+  const prices = data.map(d=>d.cny).filter(Boolean);
+  document.getElementById('statMaxPrice').textContent = prices.length ? '¥' + Math.max(...prices).toFixed(2) : '-';
+}
+
+function updateModelFilter() {
+  const sel = document.getElementById('modelFilter');
+  const cur = sel.value;
+  const models = [...new Set(data.map(d=>d.model))].sort();
+  sel.innerHTML = '<option value="">全部型号</option>' + models.map(m=>`<option value="${esc(m)}" ${m===cur?'selected':''}>${esc(m)}</option>`).join('');
+}
+
+function updateCategoryFilter() {
+  const sel = document.getElementById('categoryFilter');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">全部类目</option>' + categories.map(c=>`<option value="${esc(c)}" ${c===cur?'selected':''}>${esc(c)}</option>`).join('');
+}
+
+function renderTable() {
+  const tbody = document.getElementById('tableBody');
+  const start = (currentPage - 1) * PAGE_SIZE;
+  const page = filtered.slice(start, start + PAGE_SIZE);
+  if(!page.length) {
+    tbody.innerHTML = `<tr><td colspan="10"><div class="empty-row"><div class="icon">📭</div><div>暂无数据，点击「添加产品」开始填报</div></div></td></tr>`;
+    return;
+  }
+  let html = '';
+  let prevModel = null;
+  page.forEach((r, i) => {
+    if(r.model !== prevModel) {
+      html += `<tr><td colspan="10" style="padding:0"><div class="group-header">📦 ${esc(r.model)}</div></td></tr>`;
+      prevModel = r.model;
+    }
+    const usdDisplay = r.usd ? '$' + Number(r.usd).toFixed(4) : '<span style="color:var(--gray-400)">-</span>';
+    const imgHtml = r.img
+      ? `<img class="img-preview" src="${esc(r.img)}" alt="配图" onclick="viewImg('${esc(r.img)}')" onerror="this.style.display='none'">`
+      : `<div class="no-img" onclick="quickEditImg(${r.id})" title="点击上传配图">📷</div>`;
+    const isExpanded = expandedIds.has(r.id);
+    const catTag = r.category ? `<span class="category-tag">${esc(r.category)}</span>` : '';
+
+    html += `<tr>
+      <td><button class="expand-btn ${isExpanded?'open':''}" onclick="toggleExpand(${r.id})">▼</button></td>
+      <td style="color:var(--gray-400);font-size:12px">${start+i+1}</td>
+      <td><span class="model-tag">${esc(r.model)}</span>${catTag}</td>
+      <td>${imgHtml}</td>
+      <td><span class="qty-tag">${r.qty.toLocaleString()}</span></td>
+      <td><span class="price-cny">¥${Number(r.cny).toFixed(2)}</span></td>
+      <td><span class="price-usd">${usdDisplay}</span></td>
+      <td>${r.spec ? `<span class="spec-tag">${esc(r.spec)}</span>` : '<span style="color:var(--gray-400)">-</span>'}</td>
+      <td>${r.category ? esc(r.category) : '<span style="color:var(--gray-400)">-</span>'}</td>
+      <td>
+        <div class="actions">
+          <button class="btn btn-sm btn-outline" onclick="openEditModal(${r.id})" title="编辑">✏️</button>
+          <button class="btn btn-sm btn-danger" onclick="confirmDelete(${r.id})" title="删除">🗑️</button>
+        </div>
+      </td>
+    </tr>`;
+
+    // 展开详情行
+    if(isExpanded) {
+      html += `<tr class="detail-row"><td colspan="10">
+        <div class="detail-content">
+          <div class="detail-section-title">⚖️ 重量 & 包装信息</div>
+          <div class="detail-item">
+            <span class="detail-label">充重 (g)</span>
+            <span class="detail-value">${r.weightNet ? r.weightNet + ' g' : '-'}</span>
+          </div>
+          <div class="detail-item">
+            <span class="detail-label">包装重量 (g)</span>
+            <span class="detail-value">${r.weightPkg ? r.weightPkg + ' g' : '-'}</span>
+          </div>
+          <div class="detail-item">
+            <span class="detail-label">偏重 (kg)</span>
+            <span class="detail-value">${r.weightBulk ? r.weightBulk + ' kg' : '-'}</span>
+          </div>
+          <div class="detail-item">
+            <span class="detail-label">箱子体积</span>
+            <span class="detail-value">${r.boxVolume || '-'}</span>
+          </div>
+          <div class="detail-item">
+            <span class="detail-label">每箱数量</span>
+            <span class="detail-value">${r.qtyPerBox ? r.qtyPerBox + ' 双' : '-'}</span>
+          </div>
+          <div class="detail-item">
+            <span class="detail-label">包装方式</span>
+            <span class="detail-value">${r.pkgMethod || '-'}</span>
+          </div>
+          ${r.remark ? `<div class="detail-section-title">📝 备注</div><div class="detail-item" style="grid-column:1/-1"><span class="detail-value">${esc(r.remark)}</span></div>` : ''}
+        </div>
+      </td></tr>`;
+    }
+  });
+  tbody.innerHTML = html;
+}
+
+function toggleExpand(id) {
+  if(expandedIds.has(id)) expandedIds.delete(id);
+  else expandedIds.add(id);
+  renderTable();
+}
+
+function renderPagination() {
+  const total = filtered.length;
+  const pages = Math.ceil(total / PAGE_SIZE);
+  const start = (currentPage-1)*PAGE_SIZE+1;
+  const end = Math.min(currentPage*PAGE_SIZE, total);
+  document.getElementById('pageInfo').textContent = total ? `共 ${total} 条，显示 ${start}-${end}` : '暂无数据';
+  const container = document.getElementById('pageBtns');
+  if(pages <= 1) { container.innerHTML=''; return; }
+  let html = `<button class="page-btn" onclick="goPage(${currentPage-1})" ${currentPage<=1?'disabled':''}>‹</button>`;
+  for(let p=1;p<=pages;p++) {
+    if(p===1||p===pages||Math.abs(p-currentPage)<=2) html += `<button class="page-btn ${p===currentPage?'active':''}" onclick="goPage(${p})">${p}</button>`;
+    else if(Math.abs(p-currentPage)===3) html += `<span style="padding:0 6px;color:var(--gray-400)">…</span>`;
+  }
+  html += `<button class="page-btn" onclick="goPage(${currentPage+1})" ${currentPage>=pages?'disabled':''}>›</button>`;
+  container.innerHTML = html;
+}
+
+function goPage(p) {
+  const pages = Math.ceil(filtered.length / PAGE_SIZE);
+  if(p<1||p>pages) return;
+  currentPage = p;
+  renderTable();
+  renderPagination();
+}
+
+// ==================== 增删改 ====================
+function openAddModal() {
+  document.getElementById('modalTitle').textContent = '添加产品';
+  document.getElementById('editId').value = '';
+  document.getElementById('editModel').value = '';
+  document.getElementById('editCategory').value = '';
+  document.getElementById('editQty').value = '';
+  document.getElementById('editSpec').value = '';
+  document.getElementById('editCny').value = '';
+  document.getElementById('editUsd').value = '';
+  document.getElementById('editWeightNet').value = '';
+  document.getElementById('editWeightPkg').value = '';
+  document.getElementById('editWeightBulk').value = '';
+  document.getElementById('editBoxVolume').value = '';
+  document.getElementById('editQtyPerBox').value = '';
+  document.getElementById('editPkgMethod').value = '';
+  document.getElementById('editImgUrl').value = '';
+  document.getElementById('editRemark').value = '';
+  document.getElementById('imgPreview').classList.remove('show');
+  document.getElementById('imgPreview').src = '';
+  updateCategorySelect();
+  openModal('editModal');
+}
+
+function openEditModal(id) {
+  const r = data.find(d=>d.id===id);
+  if(!r) return;
+  document.getElementById('modalTitle').textContent = '编辑产品';
+  document.getElementById('editId').value = id;
+  document.getElementById('editModel').value = r.model;
+  document.getElementById('editCategory').value = r.category || '';
+  document.getElementById('editQty').value = r.qty;
+  document.getElementById('editSpec').value = r.spec||'';
+  document.getElementById('editCny').value = r.cny;
+  document.getElementById('editUsd').value = r.usd||'';
+  document.getElementById('editWeightNet').value = r.weightNet || '';
+  document.getElementById('editWeightPkg').value = r.weightPkg || '';
+  document.getElementById('editWeightBulk').value = r.weightBulk || '';
+  document.getElementById('editBoxVolume').value = r.boxVolume || '';
+  document.getElementById('editQtyPerBox').value = r.qtyPerBox || '';
+  document.getElementById('editPkgMethod').value = r.pkgMethod || '';
+  document.getElementById('editImgUrl').value = r.img&&!r.img.startsWith('data:') ? r.img : '';
+  document.getElementById('editRemark').value = r.remark||'';
+  const prev = document.getElementById('imgPreview');
+  if(r.img) { prev.src = r.img; prev.classList.add('show'); }
+  else { prev.src=''; prev.classList.remove('show'); }
+  updateCategorySelect();
+  openModal('editModal');
+}
+
+function quickEditImg(id) { openEditModal(id); }
+
+function saveItem() {
+  const idVal = document.getElementById('editId').value;
+  const model = document.getElementById('editModel').value.trim();
+  const category = document.getElementById('editCategory').value;
+  const qty = parseInt(document.getElementById('editQty').value);
+  const cny = parseFloat(document.getElementById('editCny').value);
+  const usdInput = document.getElementById('editUsd').value;
+  const spec = document.getElementById('editSpec').value.trim();
+  const remark = document.getElementById('editRemark').value.trim();
+  const weightNet = parseFloat(document.getElementById('editWeightNet').value) || null;
+  const weightPkg = parseFloat(document.getElementById('editWeightPkg').value) || null;
+  const weightBulk = parseFloat(document.getElementById('editWeightBulk').value) || null;
+  const boxVolume = document.getElementById('editBoxVolume').value.trim() || '';
+  const qtyPerBox = parseInt(document.getElementById('editQtyPerBox').value) || null;
+  const pkgMethod = document.getElementById('editPkgMethod').value.trim() || '';
+  const imgPreview = document.getElementById('imgPreview');
+  const imgUrl = document.getElementById('editImgUrl').value.trim();
+  let img = '';
+  if(imgPreview.classList.contains('show') && imgPreview.src) img = imgPreview.src;
+  else if(imgUrl) img = imgUrl;
+
+  if(!model) { showToast('请输入产品型号', 'error'); return; }
+  if(!qty || qty < 1) { showToast('请输入有效数量', 'error'); return; }
+  if(!cny || cny <= 0) { showToast('请输入有效的人民币价格', 'error'); return; }
+
+  const usd = usdInput ? parseFloat(usdInput) : +(cny / usdRate).toFixed(4);
+
+  const item = { model, category, qty, cny, usd, spec, remark, img,
+    weightNet, weightPkg, weightBulk, boxVolume, qtyPerBox, pkgMethod };
+
+  if(idVal) {
+    const idx = data.findIndex(d=>d.id===parseInt(idVal));
+    if(idx>=0) { data[idx] = {...data[idx], ...item}; }
+    showToast('✅ 修改成功', 'success');
+  } else {
+    data.push({ id: nextId++, ...item });
+    showToast('✅ 添加成功', 'success');
+  }
+  saveData();
+  closeModal('editModal');
+  applyFilter();
+}
+
+function confirmDelete(id) {
+  const r = data.find(d=>d.id===id);
+  document.getElementById('confirmMsg').textContent = `确定要删除「${r?r.model:''}（数量：${r?r.qty:''}）」吗？此操作不可撤销。`;
+  document.getElementById('confirmDeleteBtn').onclick = () => { doDelete(id); };
+  openModal('confirmModal');
+}
+
+function doDelete(id) {
+  data = data.filter(d=>d.id!==id);
+  expandedIds.delete(id);
+  saveData();
+  closeModal('confirmModal');
+  applyFilter();
+  showToast('🗑️ 已删除', 'warning');
+}
+
+// ==================== 类目管理 ====================
+function showCategoryModal() {
+  renderCategoryList();
+  openModal('categoryModal');
+}
+
+function renderCategoryList() {
+  const container = document.getElementById('categoryList');
+  container.innerHTML = categories.map(c =>
+    `<span class="category-chip">${esc(c)}<span class="del" onclick="removeCategory('${esc(c)}')">✕</span></span>`
+  ).join('');
+}
+
+function updateCategorySelect() {
+  const sel = document.getElementById('editCategory');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">-- 选择类目 --</option>' + categories.map(c=>`<option value="${esc(c)}" ${c===cur?'selected':''}>${esc(c)}</option>`).join('');
+}
+
+function addCategory() {
+  const name = document.getElementById('newCategoryName').value.trim();
+  if(!name) { showToast('请输入类目名称', 'error'); return; }
+  if(categories.includes(name)) { showToast('该类目已存在', 'warning'); return; }
+  categories.push(name);
+  localStorage.setItem(CATEGORIES_KEY, JSON.stringify(categories));
+  document.getElementById('newCategoryName').value = '';
+  renderCategoryList();
+  updateCategorySelect();
+  updateCategoryFilter();
+  showToast('✅ 类目添加成功', 'success');
+}
+
+function removeCategory(name) {
+  categories = categories.filter(c => c !== name);
+  localStorage.setItem(CATEGORIES_KEY, JSON.stringify(categories));
+  renderCategoryList();
+  updateCategorySelect();
+  updateCategoryFilter();
+  showToast('🗑️ 类目已删除', 'warning');
+}
+
+// ==================== 汇率管理（实时自动更新）====================
+function showRateModal() {
+  document.getElementById('newRate').value = usdRate;
+  document.getElementById('currentRateHint').textContent = usdRate;
+  openModal('rateModal');
+}
+
+// 从免费API获取实时汇率
+async function refreshRate() {
+  showToast('🔄 正在获取实时汇率...', 'info');
+  try {
+    // 尝试多个免费汇率API
+    const apis = [
+      'https://api.exchangerate-api.com/v4/latest/USD',
+      'https://open.er-api.com/v6/latest/USD'
+    ];
+    let rate = null;
+    for(const url of apis) {
+      try {
+        const res = await fetch(url);
+        if(!res.ok) continue;
+        const json = await res.json();
+        if(json.rates && json.rates.CNY) {
+          rate = json.rates.CNY;
+          break;
+        }
+      } catch(e) { continue; }
+    }
+
+    if(rate) {
+      usdRate = rate;
+      localStorage.setItem(USD_RATE_KEY, rate);
+      const now = new Date().toLocaleString('zh-CN');
+      rateLastUpdated = now;
+      localStorage.setItem(RATE_TIME_KEY, now);
+      updateRateDisplay();
+      showToast(`✅ 汇率已更新：1 USD = ${rate.toFixed(4)} CNY`, 'success');
+    } else {
+      showToast('❌ 获取实时汇率失败，请检查网络或手动设置', 'error');
+    }
+  } catch(e) {
+    showToast('❌ 获取实时汇率失败：' + e.message, 'error');
+  }
+}
+
+function updateRate() {
+  const v = parseFloat(document.getElementById('newRate').value);
+  if(!v || v <= 0) { showToast('请输入有效汇率', 'error'); return; }
+  usdRate = v;
+  localStorage.setItem(USD_RATE_KEY, v);
+  const now = new Date().toLocaleString('zh-CN');
+  rateLastUpdated = now;
+  localStorage.setItem(RATE_TIME_KEY, now);
+  updateRateDisplay();
+  closeModal('rateModal');
+  showToast(`💱 汇率已更新为 1 USD = ${v} CNY`, 'success');
+}
+
+function updateRateDisplay() {
+  document.getElementById('rateDisplay').textContent = usdRate.toFixed(4);
+  const dateEl = document.getElementById('rateDate');
+  dateEl.textContent = rateLastUpdated ? rateLastUpdated + ' 更新' : '手动设置';
+  const dot = document.getElementById('rateDot');
+  if(rateLastUpdated) {
+    dot.classList.remove('stale');
+  } else {
+    dot.classList.add('stale');
+  }
+}
+
+function autoCalcUSD() {
+  const cny = parseFloat(document.getElementById('editCny').value);
+  if(cny > 0) {
+    document.getElementById('editUsd').value = +(cny / usdRate).toFixed(4);
+  }
+}
+
+// ==================== 图片处理 ====================
+function handleImgUpload(e) {
+  const file = e.target.files[0];
+  if(!file) return;
+  if(file.size > 5*1024*1024) { showToast('图片大小不能超过 5MB', 'error'); return; }
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const prev = document.getElementById('imgPreview');
+    prev.src = ev.target.result;
+    prev.classList.add('show');
+    document.getElementById('editImgUrl').value = '';
+  };
+  reader.readAsDataURL(file);
+}
+
+function handleUrlInput() {
+  const url = document.getElementById('editImgUrl').value.trim();
+  if(url) {
+    const prev = document.getElementById('imgPreview');
+    prev.src = url;
+    prev.classList.add('show');
+    prev.onerror = () => { prev.classList.remove('show'); showToast('图片加载失败，请检查URL', 'error'); };
+  }
+}
+
+function clearImg() {
+  document.getElementById('imgPreview').classList.remove('show');
+  document.getElementById('imgPreview').src = '';
+  document.getElementById('editImgUrl').value = '';
+  document.getElementById('imgFileInput').value = '';
+}
+
+function onDragOver(e) { e.preventDefault(); document.getElementById('uploadZone').classList.add('dragover'); }
+function onDragLeave(e) { document.getElementById('uploadZone').classList.remove('dragover'); }
+function onDrop(e) {
+  e.preventDefault();
+  document.getElementById('uploadZone').classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if(file && file.type.startsWith('image/')) {
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const prev = document.getElementById('imgPreview');
+      prev.src = ev.target.result;
+      prev.classList.add('show');
+    };
+    reader.readAsDataURL(file);
+  }
+}
+
+function viewImg(src) {
+  document.getElementById('viewImgEl').src = src;
+  document.getElementById('viewImgOverlay').classList.add('open');
+}
+function closeImgViewer() { document.getElementById('viewImgOverlay').classList.remove('open'); }
+
+// ==================== 导出 / 导入 ====================
+function exportData() {
+  const json = JSON.stringify(data, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `步云价格表_${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  showToast('📥 数据已导出', 'success');
+}
+
+function importData() { openModal('importModal'); }
+
+function doImport() {
+  try {
+    const json = document.getElementById('importJson').value.trim();
+    const arr = JSON.parse(json);
+    if(!Array.isArray(arr)) throw new Error('不是数组');
+    const valid = arr.filter(r => r.model && r.qty && r.cny);
+    if(!valid.length) throw new Error('无有效数据');
+    valid.forEach(r => {
+      r.id = nextId++;
+      if(!r.usd && r.cny) r.usd = +(r.cny / usdRate).toFixed(4);
+    });
+    data.push(...valid);
+    saveData();
+    closeModal('importModal');
+    applyFilter();
+    showToast(`✅ 成功导入 ${valid.length} 条数据`, 'success');
+  } catch(e) {
+    showToast('导入失败：' + e.message, 'error');
+  }
+}
+
+// ==================== 工具函数 ====================
+function saveData() { localStorage.setItem(DATA_KEY, JSON.stringify(data)); }
+
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+// Close modal on overlay click
+document.querySelectorAll('.modal-overlay').forEach(o => {
+  o.addEventListener('click', e => { if(e.target === o) o.classList.remove('open'); });
+});
+
+function showToast(msg, type='info') {
+  const icons = { success:'✅', error:'❌', warning:'⚠️', info:'ℹ️' };
+  const c = document.getElementById('toastContainer');
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  t.innerHTML = `<span class="toast-icon">${icons[type]||'ℹ️'}</span><span class="toast-msg">${msg}</span>`;
+  c.appendChild(t);
+  setTimeout(() => { t.style.opacity='0'; t.style.transform='translateX(20px)'; t.style.transition='all .3s'; setTimeout(()=>t.remove(), 300); }, 2500);
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', e => {
+  if(e.key === 'Escape') {
+    document.querySelectorAll('.modal-overlay.open').forEach(m=>m.classList.remove('open'));
+    document.getElementById('viewImgOverlay').classList.remove('open');
+  }
+  if((e.ctrlKey||e.metaKey) && e.key==='n') { e.preventDefault(); openAddModal(); }
+});
+
+// ==================== 初始化 ====================
+updateRateDisplay();
+applyFilter();
+</script>
+</body>
+</html>
