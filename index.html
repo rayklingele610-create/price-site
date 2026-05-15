@@ -639,10 +639,13 @@ let expandedIds = new Set();
 async function loadFromCloud() {
   try {
     updateSyncStatus('syncing', '🔄 正在同步数据...');
+    console.log('[Cloud] 开始加载云端数据...');
     
     // 加载产品数据
     const productsRes = await db.collection('products').get();
+    console.log('[Cloud] products结果:', productsRes);
     if (productsRes.data && productsRes.data.length > 0) {
+      console.log('[Cloud] 云端有数据，条数:', productsRes.data.length);
       data = productsRes.data.map(item => ({
         id: item._id || item.id,
         model: item.model || '',
@@ -663,9 +666,11 @@ async function loadFromCloud() {
       }));
     } else {
       // 云端没有数据，初始化默认数据
+      console.log('[Cloud] 云端无数据，使用初始数据');
       data = JSON.parse(JSON.stringify(initialData));
       await initCloudData();
     }
+    console.log('[Cloud] data数组长度:', data.length);
     
     // 加载类目
     const settingsRes = await db.collection('settings').doc('categories').get();
@@ -690,7 +695,9 @@ async function loadFromCloud() {
     
     nextId = data.length ? Math.max(...data.map(d => d.id)) + 1 : 100;
     updateSyncStatus('online', '☁️ 云同步已连接');
+    console.log('[Cloud] 调用applyFilter前 data长度:', data.length);
     applyFilter(); // 更新filtered并渲染
+    console.log('[Cloud] 调用applyFilter后 filtered长度:', filtered.length);
     showToast('✅ 数据同步完成', 'success');
   } catch(e) {
     console.error('加载云端数据失败:', e);
@@ -846,10 +853,12 @@ let currentPage = 1;
 const PAGE_SIZE = 20;
 
 function applyFilter() {
+  console.log('[Filter] applyFilter被调用，data长度:', data.length);
   const q = document.getElementById('searchInput').value.trim().toLowerCase();
   const mf = document.getElementById('modelFilter').value;
   const cf = document.getElementById('categoryFilter').value;
   const qf = document.getElementById('qtyFilter').value;
+  console.log('[Filter] 过滤条件:', {q, mf, cf, qf});
   filtered = data.filter(r => {
     const matchQ = !q || r.model.toLowerCase().includes(q) || String(r.qty).includes(q) || (r.remark||'').toLowerCase().includes(q) || (r.spec||'').toLowerCase().includes(q);
     const matchM = !mf || r.model === mf;
@@ -866,6 +875,7 @@ function applyFilter() {
     if(typeof av === 'string') return av.localeCompare(bv) * sortDir;
     return (av - bv) * sortDir;
   });
+  console.log('[Filter] 过滤后filtered长度:', filtered.length);
   currentPage = 1;
   render();
 }
