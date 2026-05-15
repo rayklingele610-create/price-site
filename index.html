@@ -649,8 +649,9 @@ async function loadFromCloud() {
     console.log('[Cloud] products结果:', productsRes);
     if (productsRes.data && productsRes.data.length > 0) {
       console.log('[Cloud] 云端有数据，条数:', productsRes.data.length);
-      data = productsRes.data.map(item => ({
-        id: item._id || item.id,
+      data = productsRes.data.map((item, idx) => ({
+        id: 100 + idx, // 生成独立的数字id
+        _cloudId: item._id || item.id || '', // 保存云端id用于更新
         model: item.model || '',
         category: item.category || '',
         qty: item.qty || 0,
@@ -834,7 +835,9 @@ async function saveToCloud(item, isUpdate = false) {
       await db.collection('products').doc(item._cloudId).update({ data: cloudData });
     } else {
       const res = await db.collection('products').add({ data: cloudData });
-      item._cloudId = res._id;
+      console.log('[Cloud] add返回结果:', res);
+      item._cloudId = res._id || res.id || '';
+      console.log('[Cloud] 设置_cloudId:', item._cloudId);
     }
     
     updateSyncStatus('online', '☁️ 云同步已连接');
