@@ -495,15 +495,16 @@
 <!-- Toast Container -->
 <div class="toast-container" id="toastContainer"></div>
 
-<!-- 云开发 SDK -->
-<script src="https://res.wx.qq.com/open/js/cloudbase/1.1.0/cloud.js"></script>
+<!-- 云开发 Web端SDK -->
+<script src="https://res.wx.qq.com/tcb-js-sdk/latest/tcb.js"></script>
 
 <script>
 // ==================== 云开发配置 ====================
-const CLOUD_ENV = 'cloud1-d8gio2ysk4dd3678b';
-const APP_ID = 'wx3dba631035e4270b'; // 小程序AppID
-let db = null;
+let app = null;  // TCB应用实例
+let db = null;   // 数据库实例
 let cloudReady = false;
+const CLOUD_ENV = 'cloud1-d8gio2ysk4dd3678b';
+const APP_ID = 'wx3dba631035e4270b';
 
 // 初始化云开发
 async function initCloud() {
@@ -511,14 +512,14 @@ async function initCloud() {
     updateSyncStatus('connecting', '正在连接云同步...');
     console.log('[Cloud] 开始初始化云开发...');
     
-    // 1. 初始化云开发（必须同时传appid和env）
-    cloud.init({
-      appid: APP_ID,
-      env: CLOUD_ENV
+    // 1. 初始化TCB应用（Web端必须用tcb.init）
+    app = tcb.init({
+      env: CLOUD_ENV,
+      appid: APP_ID
     });
     
-    // 2. 匿名登录（Web端必须）
-    const auth = cloud.auth();
+    // 2. 匿名登录（从app实例获取auth）
+    const auth = app.auth();
     if (!auth.hasLoginState()) {
       console.log('[Cloud] 正在进行匿名登录...');
       await auth.signInAnonymously();
@@ -527,8 +528,8 @@ async function initCloud() {
       console.log('[Cloud] 已登录状态');
     }
 
-    // 3. 获取数据库实例
-    db = cloud.database();
+    // 3. 获取数据库实例（从app实例获取database）
+    db = app.database();
     cloudReady = true;
 
     // 4. 连接成功，更新状态
