@@ -180,16 +180,12 @@
   <div id="toast" class="toast" style="display: none;"></div>
 
   <script>
-    // ==================== JSONbin.io 配置 ====================
-    // JSONbin.io 免费云存储 - 无需注册，直接读写
-    // 创建一个新的 bin: https://api.jsonbin.io/v3/b
-    // 这里使用一个示例 bin ID，你可以创建自己的
-    const JSONBIN_API_KEY = '$2a$10$YourApiKeyHere'; // 免费注册获取: https://jsonbin.io
-    const JSONBIN_BIN_ID = 'buyun_price_data'; // 使用自定义ID
-    const JSONBIN_URL = 'https://api.jsonbin.io/v3/b/' + JSONBIN_BIN_ID;
+    // ==================== JSONBlob 配置 ====================
+    // JSONBlob 完全免费，无需注册，无需 Key
+    // 使用方式：POST 创建，GET 读取，PUT 更新
+    const JSONBLOB_URL = 'https://jsonblob.com/api/jsonBlob/6b2e7a10-12f6-11ef-8a2a-e59b81d4d4f8';
 
-    // 备用方案：使用 GitHub Gist 或 其他免费存储
-    // 如果 JSONbin 不可用，使用 localStorage 作为降级
+    // 备用方案：如果 JSONBlob 不可用，使用 localStorage 作为降级
     const DATA_KEY = 'buyun_price_data_v2';
     const RATE_KEY = 'buyun_usd_rate';
 
@@ -259,37 +255,40 @@
 
     // ==================== 云同步核心 ====================
 
-    // 从云端加载数据（使用 JSONbin.io）
+    // 从云端加载数据（使用 JSONBlob）
     async function loadFromCloud() {
       try {
         updateSyncStatus('connecting', '🔄 正在连接云同步...');
-        console.log('[Cloud] 尝试从 JSONbin 加载数据...');
+        console.log('[Cloud] 尝试从 JSONBlob 加载数据...');
 
-        // 尝试从 JSONbin 读取
-        const response = await fetch(JSONBIN_URL + '/latest', {
+        // 尝试从 JSONBlob 读取
+        const response = await fetch(JSONBLOB_URL, {
           method: 'GET',
           headers: {
-            'X-Master-Key': JSONBIN_API_KEY,
             'Content-Type': 'application/json'
           }
         });
 
         if (response.ok) {
           const result = await response.json();
-          console.log('[Cloud] JSONbin 数据:', result);
+          console.log('[Cloud] JSONBlob 数据:', result);
 
-          if (result.record && result.record.data) {
-            dataList = result.record.data;
+          if (result && result.data && Array.isArray(result.data)) {
+            dataList = result.data;
             cloudSyncEnabled = true;
             updateSyncStatus('online', '☁️ 云同步已连接，多人实时协作中');
             showToast('云同步连接成功', 'success');
           } else {
-            // 云端没有数据，使用本地数据并上传
+            // 云端数据格式不对，初始化
             loadFromLocal();
             await saveToCloud();
           }
+        } else if (response.status === 404) {
+          // 首次使用，没有数据，创建初始数据
+          loadFromLocal();
+          await saveToCloud();
         } else {
-          throw new Error('JSONbin 读取失败: ' + response.status);
+          throw new Error('JSONBlob 读取失败: ' + response.status);
         }
       } catch (e) {
         console.error('[Cloud] 云同步失败:', e);
@@ -306,16 +305,44 @@
 
     // 保存数据到云端
     async function saveToCloud() {
-      if (!cloudSyncEnabled) return false;
+      if (!cloudSyncEnabled) {
+        // 如果还没连上云，先尝试保存
+        try {
+          updateSyncStatus('connecting', '🔄 正在创建云端数据...');
+          const response = await fetch(JSONBLOB_URL, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              data: dataList,
+              updatedAt: new Date().toISOString()
+            })
+          });
+
+          if (response.ok) {
+            const result = await response.json();
+            // 从 Location header 获取实际的 URL
+            const location = response.headers.get('Location') || JSONBLOB_URL;
+            console.log('[Cloud] 创建成功:', location);
+            cloudSyncEnabled = true;
+            updateSyncStatus('online', '☁️ 云同步已连接，多人实时协作中');
+            return true;
+          }
+        } catch (e) {
+          console.error('[Cloud] 创建云端数据失败:', e);
+        }
+        updateSyncStatus('offline', '⚠️ 本地模式');
+        return false;
+      }
 
       try {
         updateSyncStatus('connecting', '🔄 正在保存到云端...');
-        console.log('[Cloud] 保存数据到 JSONbin...');
+        console.log('[Cloud] 保存数据到 JSONBlob...');
 
-        const response = await fetch(JSONBIN_URL, {
+        const response = await fetch(JSONBLOB_URL, {
           method: 'PUT',
           headers: {
-            'X-Master-Key': JSONBIN_API_KEY,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
@@ -344,18 +371,17 @@
       syncInterval = setInterval(async () => {
         if (cloudSyncEnabled) {
           try {
-            const response = await fetch(JSONBIN_URL + '/latest', {
+            const response = await fetch(JSONBLOB_URL, {
               method: 'GET',
               headers: {
-                'X-Master-Key': JSONBIN_API_KEY,
                 'Content-Type': 'application/json'
               }
             });
 
             if (response.ok) {
               const result = await response.json();
-              if (result.record && result.record.data) {
-                const cloudData = result.record.data;
+              if (result && result.data) {
+                const cloudData = result.data;
                 // 检查是否有变化
                 if (JSON.stringify(cloudData) !== JSON.stringify(dataList)) {
                   console.log('[Cloud] 检测到云端数据变化，自动刷新');
