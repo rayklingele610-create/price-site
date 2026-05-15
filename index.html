@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>步云鞋垫 · 价格填报管理系统 v2</title>
+<title>步云鞋垫 · 价格填报管理系统 v2 (云同步版)</title>
 <style>
   :root {
     --primary: #2563eb;
@@ -45,6 +45,11 @@
   .rate-badge .live-dot.stale { background: #fbbf24; animation: none; }
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
   .rate-info { font-size: 11px; color: rgba(255,255,255,.6); display: block; margin-top: 1px; }
+  .sync-status { background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.3); border-radius: 20px; padding: 6px 14px; color: #fff; font-size: 12px; display: flex; align-items: center; gap: 6px; }
+  .sync-status .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .sync-status .dot.online { background: #4ade80; animation: pulse 2s infinite; }
+  .sync-status .dot.offline { background: #f87171; }
+  .sync-status .dot.syncing { background: #fbbf24; animation: pulse 1s infinite; }
 
   /* Toolbar */
   .toolbar { background: #fff; padding: 16px 32px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; box-shadow: var(--shadow); border-bottom: 1px solid var(--gray-200); }
@@ -198,9 +203,13 @@
 <div class="header">
   <div class="header-left">
     <h1>🧾 步云鞋垫 · 价格填报管理系统 v2</h1>
-    <p>新乡步云鞋垫有限公司 · 内部版价格管理</p>
+    <p>新乡步云鞋垫有限公司 · 云同步版（多人实时协作）</p>
   </div>
   <div class="header-right">
+    <div class="sync-status" id="syncStatus">
+      <span class="dot offline" id="syncDot"></span>
+      <span id="syncText">连接中...</span>
+    </div>
     <div class="rate-badge">
       <span class="live-dot" id="rateDot"></span>
       💱 汇率：1 USD = <span id="rateDisplay">6.80</span> CNY
@@ -328,7 +337,7 @@
         </div>
       </div>
 
-      <!-- 重量 & 包装（参考图二） -->
+      <!-- 重量 & 包装 -->
       <div class="section-divider">
         <div class="section-title">⚖️ 重量 & 包装</div>
       </div>
@@ -483,7 +492,45 @@
 <!-- Toast Container -->
 <div class="toast-container" id="toastContainer"></div>
 
+<!-- 云开发 SDK -->
+<script src="https://res.wx.qq.com/open/js/cloudbase/1.1.0/cloud.js"></script>
+
 <script>
+// ==================== 云开发配置 ====================
+const CLOUD_ENV = 'cloud1-d8gio2ysk4dd3678b';
+let db = null;
+let cloudReady = false;
+
+// 初始化云开发
+async function initCloud() {
+  try {
+    cloud.init({ env: CLOUD_ENV });
+    db = cloud.database();
+    cloudReady = true;
+    updateSyncStatus('online', '☁️ 云同步已连接');
+    showToast('☁️ 云数据库连接成功', 'success');
+    
+    // 加载数据
+    await loadFromCloud();
+    
+    // 启动实时监听
+    startRealtimeListener();
+  } catch(e) {
+    console.error('云开发初始化失败:', e);
+    updateSyncStatus('offline', '❌ 云同步失败，使用本地数据');
+    showToast('云同步连接失败，使用本地模式', 'warning');
+    // 回退到本地数据
+    loadFromLocal();
+  }
+}
+
+function updateSyncStatus(status, text) {
+  const dot = document.getElementById('syncDot');
+  const txt = document.getElementById('syncText');
+  dot.className = 'dot ' + status;
+  txt.textContent = text;
+}
+
 // ==================== 数据初始化 ====================
 const USD_RATE_KEY = 'buyun_usd_rate_v2';
 const DATA_KEY = 'buyun_price_data_v2';
@@ -495,9 +542,9 @@ let rateLastUpdated = localStorage.getItem(RATE_TIME_KEY) || '';
 
 // 默认类目
 const defaultCategories = ['增高鞋垫', '除臭鞋垫', '矫正鞋垫', '运动鞋垫', '保暖鞋垫', '普通鞋垫'];
-let categories = JSON.parse(localStorage.getItem(CATEGORIES_KEY)) || [...defaultCategories];
+let categories = [...defaultCategories];
 
-// 初始数据（从价格表.xls 读取，美元价格按汇率 6.80 换算）
+// 初始数据
 const initialData = [
   // AS01
   { id:1, model:'AS01', category:'增高鞋垫', qty:20,   cny:17.68, usd:+(17.68/6.80).toFixed(4), spec:'', img:'', remark:'',
@@ -580,11 +627,217 @@ const initialData = [
     weightNet:75, weightPkg:23, weightBulk:11.0, boxVolume:'48×32×22cm', qtyPerBox:350, pkgMethod:'彩盒' },
 ];
 
-let data = JSON.parse(localStorage.getItem(DATA_KEY)) || JSON.parse(JSON.stringify(initialData));
-let nextId = data.length ? Math.max(...data.map(d=>d.id)) + 1 : 100;
+let data = [];
+let nextId = 100;
 
 // 展开状态
 let expandedIds = new Set();
+
+// ==================== 云数据库操作 ====================
+
+// 从云端加载数据
+async function loadFromCloud() {
+  try {
+    updateSyncStatus('syncing', '🔄 正在同步数据...');
+    
+    // 加载产品数据
+    const productsRes = await db.collection('products').get();
+    if (productsRes.data && productsRes.data.length > 0) {
+      data = productsRes.data.map(item => ({
+        id: item._id || item.id,
+        model: item.model || '',
+        category: item.category || '',
+        qty: item.qty || 0,
+        cny: item.priceCNY || item.cny || 0,
+        usd: item.priceUSD || item.usd || 0,
+        spec: item.spec || '',
+        img: item.imageUrl || item.img || '',
+        remark: item.remark || '',
+        weightNet: item.weightNet || item.weight || null,
+        weightPkg: item.weightPkg || null,
+        weightBulk: item.weightBulk || item.bagWeight || null,
+        boxVolume: item.boxVolume || item.volume || '',
+        qtyPerBox: item.qtyPerBox || null,
+        pkgMethod: item.pkgMethod || '',
+        _openid: item._openid
+      }));
+    } else {
+      // 云端没有数据，初始化默认数据
+      data = JSON.parse(JSON.stringify(initialData));
+      await initCloudData();
+    }
+    
+    // 加载类目
+    const settingsRes = await db.collection('settings').doc('categories').get();
+    if (settingsRes.data && settingsRes.data.list) {
+      categories = settingsRes.data.list;
+    } else {
+      await db.collection('settings').add({
+        data: { _id: 'categories', list: categories }
+      });
+    }
+    
+    // 加载汇率
+    const rateRes = await db.collection('settings').doc('exchangeRate').get();
+    if (rateRes.data && rateRes.data.rate) {
+      usdRate = rateRes.data.rate;
+      rateLastUpdated = rateRes.data.updatedAt || '';
+    } else {
+      await db.collection('settings').add({
+        data: { _id: 'exchangeRate', rate: usdRate, updatedAt: rateLastUpdated }
+      });
+    }
+    
+    nextId = data.length ? Math.max(...data.map(d => d.id)) + 1 : 100;
+    updateSyncStatus('online', '☁️ 云同步已连接');
+    render();
+    showToast('✅ 数据同步完成', 'success');
+  } catch(e) {
+    console.error('加载云端数据失败:', e);
+    loadFromLocal();
+  }
+}
+
+// 初始化云端数据
+async function initCloudData() {
+  try {
+    for (const item of data) {
+      await db.collection('products').add({
+        data: {
+          model: item.model,
+          category: item.category,
+          qty: item.qty,
+          priceCNY: item.cny,
+          priceUSD: item.usd,
+          spec: item.spec,
+          imageUrl: item.img,
+          remark: item.remark,
+          weightNet: item.weightNet,
+          weightPkg: item.weightPkg,
+          weightBulk: item.weightBulk,
+          boxVolume: item.boxVolume,
+          qtyPerBox: item.qtyPerBox,
+          pkgMethod: item.pkgMethod,
+          createdAt: new Date()
+        }
+      });
+    }
+    showToast('✅ 初始数据已上传到云端', 'success');
+  } catch(e) {
+    console.error('初始化云端数据失败:', e);
+  }
+}
+
+// 本地模式回退
+function loadFromLocal() {
+  data = JSON.parse(localStorage.getItem(DATA_KEY)) || JSON.parse(JSON.stringify(initialData));
+  categories = JSON.parse(localStorage.getItem(CATEGORIES_KEY)) || [...defaultCategories];
+  nextId = data.length ? Math.max(...data.map(d => d.id)) + 1 : 100;
+  render();
+}
+
+// 实时数据监听
+function startRealtimeListener() {
+  if (!db) return;
+  
+  // 监听 products 集合变化
+  db.collection('products').watch({
+    onChange: (snapshot) => {
+      console.log('数据变化:', snapshot);
+      if (snapshot.docChanges && snapshot.docChanges.length > 0) {
+        // 重新加载数据
+        loadFromCloud();
+        showToast('🔄 数据已更新', 'info');
+      }
+    },
+    onError: (err) => {
+      console.error('监听错误:', err);
+    }
+  });
+}
+
+// 保存到云端
+async function saveToCloud(item, isUpdate = false) {
+  if (!cloudReady || !db) {
+    // 本地模式
+    saveData();
+    return;
+  }
+  
+  try {
+    updateSyncStatus('syncing', '🔄 正在保存...');
+    
+    const cloudData = {
+      model: item.model,
+      category: item.category,
+      qty: item.qty,
+      priceCNY: item.cny,
+      priceUSD: item.usd,
+      spec: item.spec,
+      imageUrl: item.img,
+      remark: item.remark,
+      weightNet: item.weightNet,
+      weightPkg: item.weightPkg,
+      weightBulk: item.weightBulk,
+      boxVolume: item.boxVolume,
+      qtyPerBox: item.qtyPerBox,
+      pkgMethod: item.pkgMethod,
+      updatedAt: new Date()
+    };
+    
+    if (isUpdate && item._cloudId) {
+      await db.collection('products').doc(item._cloudId).update({ data: cloudData });
+    } else {
+      const res = await db.collection('products').add({ data: cloudData });
+      item._cloudId = res._id;
+    }
+    
+    updateSyncStatus('online', '☁️ 云同步已连接');
+  } catch(e) {
+    console.error('保存到云端失败:', e);
+    saveData();
+    updateSyncStatus('offline', '⚠️ 本地模式');
+  }
+}
+
+// 从云端删除
+async function deleteFromCloud(cloudId) {
+  if (!cloudReady || !db || !cloudId) return;
+  
+  try {
+    updateSyncStatus('syncing', '🔄 正在删除...');
+    await db.collection('products').doc(cloudId).remove();
+    updateSyncStatus('online', '☁️ 云同步已连接');
+  } catch(e) {
+    console.error('从云端删除失败:', e);
+  }
+}
+
+// 保存汇率到云端
+async function saveRateToCloud() {
+  if (!cloudReady || !db) return;
+  
+  try {
+    await db.collection('settings').doc('exchangeRate').update({
+      data: { rate: usdRate, updatedAt: rateLastUpdated }
+    });
+  } catch(e) {
+    console.error('保存汇率失败:', e);
+  }
+}
+
+// 保存类目到云端
+async function saveCategoriesToCloud() {
+  if (!cloudReady || !db) return;
+  
+  try {
+    await db.collection('settings').doc('categories').update({
+      data: { list: categories }
+    });
+  } catch(e) {
+    console.error('保存类目失败:', e);
+  }
+}
 
 // ==================== 过滤 / 排序 / 分页 ====================
 let filtered = [...data];
@@ -647,85 +900,79 @@ function updateModelFilter() {
   const sel = document.getElementById('modelFilter');
   const cur = sel.value;
   const models = [...new Set(data.map(d=>d.model))].sort();
-  sel.innerHTML = '<option value="">全部型号</option>' + models.map(m=>`<option value="${esc(m)}" ${m===cur?'selected':''}>${esc(m)}</option>`).join('');
+  sel.innerHTML = '<option value="">全部型号</option>' + models.map(m=>`<option value="${esc(m)}">${esc(m)}</option>`).join('');
+  sel.value = cur;
 }
 
 function updateCategoryFilter() {
   const sel = document.getElementById('categoryFilter');
   const cur = sel.value;
-  sel.innerHTML = '<option value="">全部类目</option>' + categories.map(c=>`<option value="${esc(c)}" ${c===cur?'selected':''}>${esc(c)}</option>`).join('');
+  sel.innerHTML = '<option value="">全部类目</option>' + categories.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  sel.value = cur;
+}
+
+function updateCategorySelect() {
+  const sel = document.getElementById('editCategory');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">-- 选择类目 --</option>' + categories.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  sel.value = cur;
 }
 
 function renderTable() {
   const tbody = document.getElementById('tableBody');
-  const start = (currentPage - 1) * PAGE_SIZE;
-  const page = filtered.slice(start, start + PAGE_SIZE);
+  const start = (currentPage-1)*PAGE_SIZE;
+  const page = filtered.slice(start, start+PAGE_SIZE);
+  
   if(!page.length) {
-    tbody.innerHTML = `<tr><td colspan="10"><div class="empty-row"><div class="icon">📭</div><div>暂无数据，点击「添加产品」开始填报</div></div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="10" class="empty-row"><div class="icon">📭</div><div>暂无数据，点击「添加产品」开始录入</div></td></tr>`;
     return;
   }
+  
+  // 按型号分组
+  let lastModel = null;
   let html = '';
-  let prevModel = null;
-  page.forEach((r, i) => {
-    if(r.model !== prevModel) {
-      html += `<tr><td colspan="10" style="padding:0"><div class="group-header">📦 ${esc(r.model)}</div></td></tr>`;
-      prevModel = r.model;
+  page.forEach((r, idx) => {
+    const globalIdx = start + idx + 1;
+    if(r.model !== lastModel) {
+      html += `<tr class="group-header"><td colspan="10">📦 ${esc(r.model)}</td></tr>`;
+      lastModel = r.model;
     }
-    const usdDisplay = r.usd ? '$' + Number(r.usd).toFixed(4) : '<span style="color:var(--gray-400)">-</span>';
-    const imgHtml = r.img
-      ? `<img class="img-preview" src="${esc(r.img)}" alt="配图" onclick="viewImg('${esc(r.img)}')" onerror="this.style.display='none'">`
-      : `<div class="no-img" onclick="quickEditImg(${r.id})" title="点击上传配图">📷</div>`;
-    const isExpanded = expandedIds.has(r.id);
-    const catTag = r.category ? `<span class="category-tag">${esc(r.category)}</span>` : '';
-
-    html += `<tr>
-      <td><button class="expand-btn ${isExpanded?'open':''}" onclick="toggleExpand(${r.id})">▼</button></td>
-      <td style="color:var(--gray-400);font-size:12px">${start+i+1}</td>
-      <td><span class="model-tag">${esc(r.model)}</span>${catTag}</td>
-      <td>${imgHtml}</td>
-      <td><span class="qty-tag">${r.qty.toLocaleString()}</span></td>
-      <td><span class="price-cny">¥${Number(r.cny).toFixed(2)}</span></td>
-      <td><span class="price-usd">${usdDisplay}</span></td>
-      <td>${r.spec ? `<span class="spec-tag">${esc(r.spec)}</span>` : '<span style="color:var(--gray-400)">-</span>'}</td>
-      <td>${r.category ? esc(r.category) : '<span style="color:var(--gray-400)">-</span>'}</td>
-      <td>
-        <div class="actions">
-          <button class="btn btn-sm btn-outline" onclick="openEditModal(${r.id})" title="编辑">✏️</button>
-          <button class="btn btn-sm btn-danger" onclick="confirmDelete(${r.id})" title="删除">🗑️</button>
-        </div>
+    const expanded = expandedIds.has(r.id);
+    html += `
+    <tr data-id="${r.id}">
+      <td><button class="expand-btn ${expanded?'open':''}" onclick="toggleExpand(${r.id})">▼</button></td>
+      <td>${globalIdx}</td>
+      <td><span class="model-tag">${esc(r.model)}</span>${r.category?`<span class="category-tag">${esc(r.category)}</span>`:''}</td>
+      <td>${r.img?`<img src="${esc(r.img)}" class="img-preview" onclick="viewImg('${esc(r.img)}')">`:`<div class="no-img" onclick="openEditModal(${r.id})">+</div>`}</td>
+      <td><span class="qty-tag">${esc(r.qty)}</span></td>
+      <td class="price-cny">¥${esc(r.cny.toFixed(2))}</td>
+      <td class="price-usd">$${esc(r.usd.toFixed(4))}</td>
+      <td>${r.spec?`<span class="spec-tag">${esc(r.spec)}</span>`:'-'}</td>
+      <td>${esc(r.category||'-')}</td>
+      <td class="actions">
+        <button class="btn btn-xs btn-outline" onclick="openEditModal(${r.id})">✏️</button>
+        <button class="btn btn-xs btn-danger" onclick="confirmDelete(${r.id})">🗑️</button>
       </td>
     </tr>`;
-
-    // 展开详情行
-    if(isExpanded) {
-      html += `<tr class="detail-row"><td colspan="10">
+    if(expanded) {
+      html += `
+      <tr class="detail-row"><td colspan="10">
         <div class="detail-content">
-          <div class="detail-section-title">⚖️ 重量 & 包装信息</div>
-          <div class="detail-item">
-            <span class="detail-label">充重 (g)</span>
-            <span class="detail-value">${r.weightNet ? r.weightNet + ' g' : '-'}</span>
-          </div>
-          <div class="detail-item">
-            <span class="detail-label">包装重量 (g)</span>
-            <span class="detail-value">${r.weightPkg ? r.weightPkg + ' g' : '-'}</span>
-          </div>
-          <div class="detail-item">
-            <span class="detail-label">偏重 (kg)</span>
-            <span class="detail-value">${r.weightBulk ? r.weightBulk + ' kg' : '-'}</span>
-          </div>
-          <div class="detail-item">
-            <span class="detail-label">箱子体积</span>
-            <span class="detail-value">${r.boxVolume || '-'}</span>
-          </div>
-          <div class="detail-item">
-            <span class="detail-label">每箱数量</span>
-            <span class="detail-value">${r.qtyPerBox ? r.qtyPerBox + ' 双' : '-'}</span>
-          </div>
-          <div class="detail-item">
-            <span class="detail-label">包装方式</span>
-            <span class="detail-value">${r.pkgMethod || '-'}</span>
-          </div>
-          ${r.remark ? `<div class="detail-section-title">📝 备注</div><div class="detail-item" style="grid-column:1/-1"><span class="detail-value">${esc(r.remark)}</span></div>` : ''}
+          <div class="detail-section-title">📋 基础信息</div>
+          <div class="detail-item"><span class="detail-label">型号</span><span class="detail-value">${esc(r.model)}</span></div>
+          <div class="detail-item"><span class="detail-label">类目</span><span class="detail-value">${esc(r.category||'-')}</span></div>
+          <div class="detail-item"><span class="detail-label">数量</span><span class="detail-value">${esc(r.qty)}</span></div>
+          <div class="detail-item"><span class="detail-label">规格</span><span class="detail-value">${esc(r.spec||'-')}</span></div>
+          <div class="detail-item"><span class="detail-label">人民币</span><span class="detail-value">¥${esc(r.cny.toFixed(2))}</span></div>
+          <div class="detail-item"><span class="detail-label">美元</span><span class="detail-value">$${esc(r.usd.toFixed(4))}</span></div>
+          <div class="detail-section-title">⚖️ 重量 & 包装</div>
+          <div class="detail-item"><span class="detail-label">充重</span><span class="detail-value">${r.weightNet?esc(r.weightNet)+'g':'-'}</span></div>
+          <div class="detail-item"><span class="detail-label">包装重量</span><span class="detail-value">${r.weightPkg?esc(r.weightPkg)+'g':'-'}</span></div>
+          <div class="detail-item"><span class="detail-label">偏重</span><span class="detail-value">${r.weightBulk?esc(r.weightBulk)+'kg':'-'}</span></div>
+          <div class="detail-item"><span class="detail-label">箱子体积</span><span class="detail-value">${esc(r.boxVolume||'-')}</span></div>
+          <div class="detail-item"><span class="detail-label">每箱数量</span><span class="detail-value">${r.qtyPerBox?esc(r.qtyPerBox):'-'}</span></div>
+          <div class="detail-item"><span class="detail-label">包装方式</span><span class="detail-value">${esc(r.pkgMethod||'-')}</span></div>
+          ${r.remark?`<div class="detail-section-title">📝 备注</div><div class="detail-item" style="grid-column:1/-1"><span class="detail-value">${esc(r.remark)}</span></div>`:''}
         </div>
       </td></tr>`;
     }
@@ -741,49 +988,35 @@ function toggleExpand(id) {
 
 function renderPagination() {
   const total = filtered.length;
-  const pages = Math.ceil(total / PAGE_SIZE);
-  const start = (currentPage-1)*PAGE_SIZE+1;
-  const end = Math.min(currentPage*PAGE_SIZE, total);
-  document.getElementById('pageInfo').textContent = total ? `共 ${total} 条，显示 ${start}-${end}` : '暂无数据';
-  const container = document.getElementById('pageBtns');
-  if(pages <= 1) { container.innerHTML=''; return; }
-  let html = `<button class="page-btn" onclick="goPage(${currentPage-1})" ${currentPage<=1?'disabled':''}>‹</button>`;
-  for(let p=1;p<=pages;p++) {
-    if(p===1||p===pages||Math.abs(p-currentPage)<=2) html += `<button class="page-btn ${p===currentPage?'active':''}" onclick="goPage(${p})">${p}</button>`;
-    else if(Math.abs(p-currentPage)===3) html += `<span style="padding:0 6px;color:var(--gray-400)">…</span>`;
+  const totalPages = Math.ceil(total/PAGE_SIZE) || 1;
+  document.getElementById('pageInfo').textContent = `共 ${total} 条 · 第 ${currentPage}/${totalPages} 页`;
+  let html = '';
+  html += `<button class="page-btn" onclick="goPage(1)" ${currentPage===1?'disabled':''}>⏮</button>`;
+  html += `<button class="page-btn" onclick="goPage(${currentPage-1})" ${currentPage===1?'disabled':''}>◀</button>`;
+  for(let i=Math.max(1,currentPage-2); i<=Math.min(totalPages,currentPage+2); i++) {
+    html += `<button class="page-btn ${i===currentPage?'active':''}" onclick="goPage(${i})">${i}</button>`;
   }
-  html += `<button class="page-btn" onclick="goPage(${currentPage+1})" ${currentPage>=pages?'disabled':''}>›</button>`;
-  container.innerHTML = html;
+  html += `<button class="page-btn" onclick="goPage(${currentPage+1})" ${currentPage===totalPages?'disabled':''}>▶</button>`;
+  html += `<button class="page-btn" onclick="goPage(${totalPages})" ${currentPage===totalPages?'disabled':''}>⏭</button>`;
+  document.getElementById('pageBtns').innerHTML = html;
 }
 
 function goPage(p) {
-  const pages = Math.ceil(filtered.length / PAGE_SIZE);
-  if(p<1||p>pages) return;
+  const totalPages = Math.ceil(filtered.length/PAGE_SIZE) || 1;
+  if(p<1 || p>totalPages) return;
   currentPage = p;
   renderTable();
   renderPagination();
 }
 
-// ==================== 增删改 ====================
+// ==================== CRUD ====================
 function openAddModal() {
   document.getElementById('modalTitle').textContent = '添加产品';
   document.getElementById('editId').value = '';
-  document.getElementById('editModel').value = '';
-  document.getElementById('editCategory').value = '';
-  document.getElementById('editQty').value = '';
-  document.getElementById('editSpec').value = '';
-  document.getElementById('editCny').value = '';
-  document.getElementById('editUsd').value = '';
-  document.getElementById('editWeightNet').value = '';
-  document.getElementById('editWeightPkg').value = '';
-  document.getElementById('editWeightBulk').value = '';
-  document.getElementById('editBoxVolume').value = '';
-  document.getElementById('editQtyPerBox').value = '';
-  document.getElementById('editPkgMethod').value = '';
-  document.getElementById('editImgUrl').value = '';
-  document.getElementById('editRemark').value = '';
+  ['editModel','editQty','editCny','editUsd','editSpec','editImgUrl','editRemark','editWeightNet','editWeightPkg','editWeightBulk','editBoxVolume','editQtyPerBox','editPkgMethod'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('imgPreview').classList.remove('show');
   document.getElementById('imgPreview').src = '';
+  document.getElementById('imgFileInput').value = '';
   updateCategorySelect();
   openModal('editModal');
 }
@@ -792,84 +1025,92 @@ function openEditModal(id) {
   const r = data.find(d=>d.id===id);
   if(!r) return;
   document.getElementById('modalTitle').textContent = '编辑产品';
-  document.getElementById('editId').value = id;
+  document.getElementById('editId').value = r.id;
   document.getElementById('editModel').value = r.model;
-  document.getElementById('editCategory').value = r.category || '';
   document.getElementById('editQty').value = r.qty;
-  document.getElementById('editSpec').value = r.spec||'';
   document.getElementById('editCny').value = r.cny;
-  document.getElementById('editUsd').value = r.usd||'';
-  document.getElementById('editWeightNet').value = r.weightNet || '';
-  document.getElementById('editWeightPkg').value = r.weightPkg || '';
-  document.getElementById('editWeightBulk').value = r.weightBulk || '';
-  document.getElementById('editBoxVolume').value = r.boxVolume || '';
-  document.getElementById('editQtyPerBox').value = r.qtyPerBox || '';
-  document.getElementById('editPkgMethod').value = r.pkgMethod || '';
-  document.getElementById('editImgUrl').value = r.img&&!r.img.startsWith('data:') ? r.img : '';
+  document.getElementById('editUsd').value = r.usd;
+  document.getElementById('editSpec').value = r.spec||'';
+  document.getElementById('editImgUrl').value = r.img||'';
   document.getElementById('editRemark').value = r.remark||'';
-  const prev = document.getElementById('imgPreview');
-  if(r.img) { prev.src = r.img; prev.classList.add('show'); }
-  else { prev.src=''; prev.classList.remove('show'); }
+  document.getElementById('editWeightNet').value = r.weightNet||'';
+  document.getElementById('editWeightPkg').value = r.weightPkg||'';
+  document.getElementById('editWeightBulk').value = r.weightBulk||'';
+  document.getElementById('editBoxVolume').value = r.boxVolume||'';
+  document.getElementById('editQtyPerBox').value = r.qtyPerBox||'';
+  document.getElementById('editPkgMethod').value = r.pkgMethod||'';
+  if(r.img) {
+    document.getElementById('imgPreview').src = r.img;
+    document.getElementById('imgPreview').classList.add('show');
+  } else {
+    document.getElementById('imgPreview').classList.remove('show');
+  }
   updateCategorySelect();
+  document.getElementById('editCategory').value = r.category||'';
   openModal('editModal');
 }
 
-function quickEditImg(id) { openEditModal(id); }
-
-function saveItem() {
+async function saveItem() {
   const idVal = document.getElementById('editId').value;
   const model = document.getElementById('editModel').value.trim();
-  const category = document.getElementById('editCategory').value;
   const qty = parseInt(document.getElementById('editQty').value);
   const cny = parseFloat(document.getElementById('editCny').value);
-  const usdInput = document.getElementById('editUsd').value;
-  const spec = document.getElementById('editSpec').value.trim();
-  const remark = document.getElementById('editRemark').value.trim();
-  const weightNet = parseFloat(document.getElementById('editWeightNet').value) || null;
-  const weightPkg = parseFloat(document.getElementById('editWeightPkg').value) || null;
-  const weightBulk = parseFloat(document.getElementById('editWeightBulk').value) || null;
-  const boxVolume = document.getElementById('editBoxVolume').value.trim() || '';
-  const qtyPerBox = parseInt(document.getElementById('editQtyPerBox').value) || null;
-  const pkgMethod = document.getElementById('editPkgMethod').value.trim() || '';
-  const imgPreview = document.getElementById('imgPreview');
-  const imgUrl = document.getElementById('editImgUrl').value.trim();
-  let img = '';
-  if(imgPreview.classList.contains('show') && imgPreview.src) img = imgPreview.src;
-  else if(imgUrl) img = imgUrl;
-
-  if(!model) { showToast('请输入产品型号', 'error'); return; }
-  if(!qty || qty < 1) { showToast('请输入有效数量', 'error'); return; }
-  if(!cny || cny <= 0) { showToast('请输入有效的人民币价格', 'error'); return; }
-
-  const usd = usdInput ? parseFloat(usdInput) : +(cny / usdRate).toFixed(4);
-
-  const item = { model, category, qty, cny, usd, spec, remark, img,
-    weightNet, weightPkg, weightBulk, boxVolume, qtyPerBox, pkgMethod };
-
+  let usd = parseFloat(document.getElementById('editUsd').value);
+  if(!model || !qty || !cny) { showToast('请填写必填项（型号、数量、人民币价格）', 'error'); return; }
+  if(!usd || usd<=0) usd = +(cny/usdRate).toFixed(4);
+  
+  const item = {
+    model, qty, cny, usd,
+    spec: document.getElementById('editSpec').value.trim(),
+    category: document.getElementById('editCategory').value,
+    img: document.getElementById('editImgUrl').value.trim() || (document.getElementById('imgPreview').classList.contains('show')?document.getElementById('imgPreview').src:''),
+    remark: document.getElementById('editRemark').value.trim(),
+    weightNet: parseFloat(document.getElementById('editWeightNet').value)||null,
+    weightPkg: parseFloat(document.getElementById('editWeightPkg').value)||null,
+    weightBulk: parseFloat(document.getElementById('editWeightBulk').value)||null,
+    boxVolume: document.getElementById('editBoxVolume').value.trim(),
+    qtyPerBox: parseInt(document.getElementById('editQtyPerBox').value)||null,
+    pkgMethod: document.getElementById('editPkgMethod').value.trim()
+  };
+  
   if(idVal) {
-    const idx = data.findIndex(d=>d.id===parseInt(idVal));
-    if(idx>=0) { data[idx] = {...data[idx], ...item}; }
-    showToast('✅ 修改成功', 'success');
+    const id = parseInt(idVal);
+    const idx = data.findIndex(d=>d.id===id);
+    if(idx>=0) {
+      const oldItem = data[idx];
+      data[idx] = { ...oldItem, ...item };
+      await saveToCloud(data[idx], true);
+      showToast('✅ 产品已更新（已同步到云端）', 'success');
+    }
   } else {
-    data.push({ id: nextId++, ...item });
-    showToast('✅ 添加成功', 'success');
+    const newItem = { id: nextId++, ...item };
+    data.push(newItem);
+    await saveToCloud(newItem, false);
+    showToast('✅ 产品已添加（已同步到云端）', 'success');
   }
-  saveData();
+  
   closeModal('editModal');
   applyFilter();
 }
 
+let deleteId = null;
 function confirmDelete(id) {
-  const r = data.find(d=>d.id===id);
-  document.getElementById('confirmMsg').textContent = `确定要删除「${r?r.model:''}（数量：${r?r.qty:''}）」吗？此操作不可撤销。`;
-  document.getElementById('confirmDeleteBtn').onclick = () => { doDelete(id); };
+  deleteId = id;
+  document.getElementById('confirmMsg').textContent = '确定要删除这条记录吗？此操作不可撤销。';
+  document.getElementById('confirmDeleteBtn').onclick = doDelete;
   openModal('confirmModal');
 }
 
-function doDelete(id) {
-  data = data.filter(d=>d.id!==id);
-  expandedIds.delete(id);
-  saveData();
+async function doDelete() {
+  if(!deleteId) return;
+  const idx = data.findIndex(d=>d.id===deleteId);
+  if(idx>=0) {
+    const item = data[idx];
+    await deleteFromCloud(item._cloudId);
+    data.splice(idx,1);
+    saveData();
+  }
+  deleteId = null;
   closeModal('confirmModal');
   applyFilter();
   showToast('🗑️ 已删除', 'warning');
@@ -882,24 +1123,16 @@ function showCategoryModal() {
 }
 
 function renderCategoryList() {
-  const container = document.getElementById('categoryList');
-  container.innerHTML = categories.map(c =>
-    `<span class="category-chip">${esc(c)}<span class="del" onclick="removeCategory('${esc(c)}')">✕</span></span>`
-  ).join('');
+  const el = document.getElementById('categoryList');
+  el.innerHTML = categories.map(c=>`<span class="category-chip">${esc(c)} <span class="del" onclick="removeCategory('${esc(c)}')">✕</span></span>`).join('') || '<span style="color:var(--gray-400);font-size:13px">暂无类目</span>';
 }
 
-function updateCategorySelect() {
-  const sel = document.getElementById('editCategory');
-  const cur = sel.value;
-  sel.innerHTML = '<option value="">-- 选择类目 --</option>' + categories.map(c=>`<option value="${esc(c)}" ${c===cur?'selected':''}>${esc(c)}</option>`).join('');
-}
-
-function addCategory() {
+async function addCategory() {
   const name = document.getElementById('newCategoryName').value.trim();
-  if(!name) { showToast('请输入类目名称', 'error'); return; }
+  if(!name) return;
   if(categories.includes(name)) { showToast('该类目已存在', 'warning'); return; }
   categories.push(name);
-  localStorage.setItem(CATEGORIES_KEY, JSON.stringify(categories));
+  await saveCategoriesToCloud();
   document.getElementById('newCategoryName').value = '';
   renderCategoryList();
   updateCategorySelect();
@@ -907,27 +1140,25 @@ function addCategory() {
   showToast('✅ 类目添加成功', 'success');
 }
 
-function removeCategory(name) {
+async function removeCategory(name) {
   categories = categories.filter(c => c !== name);
-  localStorage.setItem(CATEGORIES_KEY, JSON.stringify(categories));
+  await saveCategoriesToCloud();
   renderCategoryList();
   updateCategorySelect();
   updateCategoryFilter();
   showToast('🗑️ 类目已删除', 'warning');
 }
 
-// ==================== 汇率管理（实时自动更新）====================
+// ==================== 汇率管理 ====================
 function showRateModal() {
   document.getElementById('newRate').value = usdRate;
   document.getElementById('currentRateHint').textContent = usdRate;
   openModal('rateModal');
 }
 
-// 从免费API获取实时汇率
 async function refreshRate() {
   showToast('🔄 正在获取实时汇率...', 'info');
   try {
-    // 尝试多个免费汇率API
     const apis = [
       'https://api.exchangerate-api.com/v4/latest/USD',
       'https://open.er-api.com/v6/latest/USD'
@@ -951,6 +1182,7 @@ async function refreshRate() {
       const now = new Date().toLocaleString('zh-CN');
       rateLastUpdated = now;
       localStorage.setItem(RATE_TIME_KEY, now);
+      await saveRateToCloud();
       updateRateDisplay();
       showToast(`✅ 汇率已更新：1 USD = ${rate.toFixed(4)} CNY`, 'success');
     } else {
@@ -961,7 +1193,7 @@ async function refreshRate() {
   }
 }
 
-function updateRate() {
+async function updateRate() {
   const v = parseFloat(document.getElementById('newRate').value);
   if(!v || v <= 0) { showToast('请输入有效汇率', 'error'); return; }
   usdRate = v;
@@ -969,6 +1201,7 @@ function updateRate() {
   const now = new Date().toLocaleString('zh-CN');
   rateLastUpdated = now;
   localStorage.setItem(RATE_TIME_KEY, now);
+  await saveRateToCloud();
   updateRateDisplay();
   closeModal('rateModal');
   showToast(`💱 汇率已更新为 1 USD = ${v} CNY`, 'success');
@@ -1061,22 +1294,24 @@ function exportData() {
 
 function importData() { openModal('importModal'); }
 
-function doImport() {
+async function doImport() {
   try {
     const json = document.getElementById('importJson').value.trim();
     const arr = JSON.parse(json);
     if(!Array.isArray(arr)) throw new Error('不是数组');
     const valid = arr.filter(r => r.model && r.qty && r.cny);
     if(!valid.length) throw new Error('无有效数据');
-    valid.forEach(r => {
+    
+    for (const r of valid) {
       r.id = nextId++;
       if(!r.usd && r.cny) r.usd = +(r.cny / usdRate).toFixed(4);
-    });
-    data.push(...valid);
-    saveData();
+      data.push(r);
+      await saveToCloud(r, false);
+    }
+    
     closeModal('importModal');
     applyFilter();
-    showToast(`✅ 成功导入 ${valid.length} 条数据`, 'success');
+    showToast(`✅ 成功导入 ${valid.length} 条数据（已同步到云端）`, 'success');
   } catch(e) {
     showToast('导入失败：' + e.message, 'error');
   }
@@ -1090,33 +1325,24 @@ function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').re
 function openModal(id) { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 
-// Close modal on overlay click
 document.querySelectorAll('.modal-overlay').forEach(o => {
   o.addEventListener('click', e => { if(e.target === o) o.classList.remove('open'); });
 });
 
 function showToast(msg, type='info') {
   const icons = { success:'✅', error:'❌', warning:'⚠️', info:'ℹ️' };
-  const c = document.getElementById('toastContainer');
-  const t = document.createElement('div');
-  t.className = `toast ${type}`;
-  t.innerHTML = `<span class="toast-icon">${icons[type]||'ℹ️'}</span><span class="toast-msg">${msg}</span>`;
-  c.appendChild(t);
-  setTimeout(() => { t.style.opacity='0'; t.style.transform='translateX(20px)'; t.style.transition='all .3s'; setTimeout(()=>t.remove(), 300); }, 2500);
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.innerHTML = `<span class="toast-icon">${icons[type]||'ℹ️'}</span><span class="toast-msg">${esc(msg)}</span>`;
+  document.getElementById('toastContainer').appendChild(el);
+  setTimeout(()=>{ el.style.opacity='0'; el.style.transform='translateX(20px)'; setTimeout(()=>el.remove(),300); }, 3000);
 }
 
-// Keyboard shortcuts
-document.addEventListener('keydown', e => {
-  if(e.key === 'Escape') {
-    document.querySelectorAll('.modal-overlay.open').forEach(m=>m.classList.remove('open'));
-    document.getElementById('viewImgOverlay').classList.remove('open');
-  }
-  if((e.ctrlKey||e.metaKey) && e.key==='n') { e.preventDefault(); openAddModal(); }
-});
-
 // ==================== 初始化 ====================
-updateRateDisplay();
-applyFilter();
+document.addEventListener('DOMContentLoaded', () => {
+  updateRateDisplay();
+  initCloud();
+});
 </script>
 </body>
 </html>
