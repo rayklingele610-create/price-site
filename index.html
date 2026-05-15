@@ -501,6 +501,7 @@
 <script>
 // ==================== 云开发配置 ====================
 const CLOUD_ENV = 'cloud1-d8gio2ysk4dd3678b';
+const APP_ID = 'wx3dba631035e4270b'; // 小程序AppID
 let db = null;
 let cloudReady = false;
 
@@ -508,7 +509,10 @@ let cloudReady = false;
 async function initCloud() {
   try {
     console.log('[Cloud] 开始初始化云开发...');
-    cloud.init({ env: CLOUD_ENV });
+    cloud.init({ 
+      env: CLOUD_ENV,
+      appid: APP_ID
+    });
     
     // Web端必须先登录（匿名登录）
     console.log('[Cloud] 正在进行匿名登录...');
