@@ -507,7 +507,14 @@ let cloudReady = false;
 // 初始化云开发
 async function initCloud() {
   try {
+    console.log('[Cloud] 开始初始化云开发...');
     cloud.init({ env: CLOUD_ENV });
+    
+    // Web端必须先登录（匿名登录）
+    console.log('[Cloud] 正在进行匿名登录...');
+    await cloud.auth().signInAnonymously();
+    console.log('[Cloud] 匿名登录成功');
+    
     db = cloud.database();
     cloudReady = true;
     updateSyncStatus('online', '☁️ 云同步已连接');
@@ -1131,18 +1138,19 @@ async function saveItem() {
       const oldItem = data[idx];
       data[idx] = { ...oldItem, ...item };
       await saveToCloud(data[idx], true);
-      showToast('✅ 产品已更新（已同步到云端）', 'success');
+      saveData(); // 同时保存到本地
+      showToast('✅ 产品已更新', 'success');
     }
   } else {
     const newItem = { id: nextId++, ...item };
     data.push(newItem);
     await saveToCloud(newItem, false);
-    showToast('✅ 产品已添加（已同步到云端）', 'success');
+    saveData(); // 同时保存到本地
+    showToast('✅ 产品已添加', 'success');
   }
   
   closeModal('editModal');
   applyFilter();
-}
 
 let deleteId = null;
 function confirmDelete(id) {
