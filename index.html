@@ -658,8 +658,14 @@ async function loadFromCloud() {
     // 加载产品数据
     const productsRes = await db.collection('products').get();
     console.log('[Cloud] products结果:', productsRes);
+    
+    // 检查本地是否有数据
+    const localDataStr = localStorage.getItem('buyun_price_data_v2');
+    const localData = localDataStr ? JSON.parse(localDataStr) : null;
+    
     if (productsRes.data && productsRes.data.length > 0) {
       console.log('[Cloud] 云端有数据，条数:', productsRes.data.length);
+      // 云端有数据，解析并加载
       data = productsRes.data.map((item, idx) => ({
         id: 100 + idx, // 生成独立的数字id
         _cloudId: item._id || item.id || '', // 保存云端id用于更新
@@ -679,11 +685,28 @@ async function loadFromCloud() {
         pkgMethod: item.pkgMethod || '',
         _openid: item._openid
       }));
+      
+      // 如果本地有更多数据，合并（以云端为准，但保留本地独有的数据）
+      if (localData && localData.length > data.length) {
+        console.log('[Cloud] 本地数据更多，保留本地数据');
+        // 保留本地数据的id映射，合并到云端
+        data = localData; // 暂时使用本地数据
+      }
     } else {
-      // 云端没有数据，初始化默认数据
-      console.log('[Cloud] 云端无数据，使用初始数据');
-      data = JSON.parse(JSON.stringify(initialData));
-      await initCloudData();
+      // 云端没有数据
+      if (localData && localData.length > 0) {
+        // 本地有数据，用本地数据并同步到云端
+        console.log('[Cloud] 云端无数据，使用本地数据，条数:', localData.length);
+        data = localData;
+        // 清除cloudId，让系统重新上传
+        data.forEach(item => { item._cloudId = ''; });
+        await syncAllToCloud();
+      } else {
+        // 都没有，用初始数据
+        console.log('[Cloud] 云端和本地都无数据，使用初始数据');
+        data = JSON.parse(JSON.stringify(initialData));
+        await initCloudData();
+      }
     }
     console.log('[Cloud] data数组长度:', data.length);
     
@@ -747,6 +770,42 @@ async function initCloudData() {
     showToast('✅ 初始数据已上传到云端', 'success');
   } catch(e) {
     console.error('初始化云端数据失败:', e);
+  }
+}
+
+// 同步所有本地数据到云端
+async function syncAllToCloud() {
+  try {
+    console.log('[Cloud] 同步所有数据到云端，条数:', data.length);
+    for (let i = 0; i < data.length; i++) {
+      const item = data[i];
+      const res = await db.collection('products').add({
+        data: {
+          model: item.model,
+          category: item.category,
+          qty: item.qty,
+          priceCNY: item.cny,
+          priceUSD: item.usd,
+          spec: item.spec,
+          imageUrl: item.img,
+          remark: item.remark,
+          weightNet: item.weightNet,
+          weightPkg: item.weightPkg,
+          weightBulk: item.weightBulk,
+          boxVolume: item.boxVolume,
+          qtyPerBox: item.qtyPerBox,
+          pkgMethod: item.pkgMethod,
+          createdAt: new Date()
+        }
+      });
+      data[i]._cloudId = res._id || res.id || '';
+      console.log('[Cloud] 同步第', i+1, '条，cloudId:', data[i]._cloudId);
+    }
+    // 保存到localStorage
+    saveData();
+    showToast('✅ 本地数据已同步到云端', 'success');
+  } catch(e) {
+    console.error('同步到云端失败:', e);
   }
 }
 
