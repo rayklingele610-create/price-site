@@ -245,6 +245,9 @@
   <button class="btn btn-primary" onclick="openAddModal()">
     ➕ 添加产品
   </button>
+  <button class="btn btn-outline" onclick="manualRefresh()" title="刷新云端数据">
+    🔄 刷新
+  </button>
   <button class="btn btn-success" onclick="exportData()">
     📥 导出数据
   </button>
@@ -743,24 +746,59 @@ function loadFromLocal() {
   applyFilter(); // 更新filtered并渲染
 }
 
-// 实时数据监听
+// 实时数据监听（Web端可能不支持，使用定时刷新作为备选）
 function startRealtimeListener() {
   if (!db) return;
   
-  // 监听 products 集合变化
-  db.collection('products').watch({
-    onChange: (snapshot) => {
-      console.log('数据变化:', snapshot);
-      if (snapshot.docChanges && snapshot.docChanges.length > 0) {
-        // 重新加载数据
-        loadFromCloud();
-        showToast('🔄 数据已更新', 'info');
+  try {
+    // 监听 products 集合变化
+    db.collection('products').watch({
+      onChange: (snapshot) => {
+        console.log('数据变化:', snapshot);
+        if (snapshot.docChanges && snapshot.docChanges.length > 0) {
+          // 重新加载数据
+          loadFromCloud();
+          showToast('🔄 数据已更新', 'info');
+        }
+      },
+      onError: (err) => {
+        console.error('监听错误:', err);
+        // 实时监听失败时启动定时刷新
+        startPollingRefresh();
       }
-    },
-    onError: (err) => {
-      console.error('监听错误:', err);
+    });
+  } catch(e) {
+    console.error('实时监听初始化失败:', e);
+    // 启动定时刷新
+    startPollingRefresh();
+  }
+}
+
+// 定时刷新（每30秒刷新一次数据）
+let pollingInterval = null;
+function startPollingRefresh() {
+  if (pollingInterval) return;
+  console.log('启动定时刷新，每30秒检查一次数据...');
+  pollingInterval = setInterval(async () => {
+    if (cloudReady && db) {
+      try {
+        console.log('[轮询] 刷新数据...');
+        await loadFromCloud();
+      } catch(e) {
+        console.error('[轮询] 刷新失败:', e);
+      }
     }
-  });
+  }, 30000); // 30秒
+}
+
+// 手动刷新按钮功能
+async function manualRefresh() {
+  if (!cloudReady) {
+    showToast('请等待云数据库连接...', 'warning');
+    return;
+  }
+  showToast('🔄 正在刷新数据...', 'info');
+  await loadFromCloud();
 }
 
 // 保存到云端
